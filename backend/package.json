@@ -5,8 +5,10 @@
   "type": "module",
   "main": "src/server.js",
   "scripts": {
-    "dev": "nodemon src/server.js",
-    "start": "node src/server.js"
+    "dev": "nodemon src/server-v2.js",
+    "dev:legacy": "nodemon src/server.js",
+    "start": "node src/server-v2.js",
+    "start:legacy": "node src/server.js"
   },
   "keywords": [
     "chat",
@@ -25,6 +27,7 @@
     "lowdb": "^7.0.1",
     "multer": "^2.0.2",
     "nanoid": "^5.1.6",
+    "pg": "^8.16.3",
     "socket.io": "^4.8.1",
     "speakeasy": "^2.0.0",
     "uuid": "^13.0.0",
