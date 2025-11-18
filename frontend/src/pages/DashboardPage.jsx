@@ -36,43 +36,66 @@ function DashboardPage() {
   }, []);
 
   const cards = [
-    { label: '用户', value: summary.users },
-    { label: '会话', value: summary.conversations },
-    { label: '消息', value: summary.messages },
-    { label: '文件', value: summary.files },
-    { label: '在线', value: summary.onlineUsers },
+    { label: '用户总数', value: summary.users, icon: '👥' },
+    { label: '会话数', value: summary.conversations, icon: '💬' },
+    { label: '消息数', value: summary.messages, icon: '📨' },
+    { label: '文件数', value: summary.files, icon: '📎' },
+    { label: '在线用户', value: summary.onlineUsers, icon: '🟢' },
   ];
 
   return (
-    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      <div className="card-grid">
+    <div className="dashboard-container">
+      <div className="dashboard-header">
+        <h1>📊 数据仪表盘</h1>
+        <p>实时查看系统运行状态和使用统计</p>
+      </div>
+
+      <div className="stats-grid">
         {cards.map((card) => (
           <div key={card.label} className="stat-card">
-            <div className="stat-label">{card.label}</div>
+            <div className="stat-label">
+              <span style={{ marginRight: '6px' }}>{card.icon}</span>
+              {card.label}
+            </div>
             <div className="stat-value">{card.value}</div>
           </div>
         ))}
       </div>
-      <div className="panel">
-        <header>
-          <h2>消息吞吐趋势</h2>
-        </header>
-        <div style={{ height: 260 }}>
+
+      <div className="chart-container">
+        <h2>📈 消息趋势分析</h2>
+        <div style={{ height: 300 }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={activity}>
               <defs>
                 <linearGradient id="colorMsg" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#2563eb" stopOpacity={0.7} />
-                  <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#667eea" stopOpacity={0.8} />
+                  <stop offset="95%" stopColor="#764ba2" stopOpacity={0.1} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="day" />
-              <YAxis allowDecimals={false} />
-              <Tooltip />
+              <XAxis 
+                dataKey="day" 
+                stroke="#9ca3af"
+                style={{ fontSize: '0.875rem' }}
+              />
+              <YAxis 
+                allowDecimals={false} 
+                stroke="#9ca3af"
+                style={{ fontSize: '0.875rem' }}
+              />
+              <Tooltip 
+                contentStyle={{
+                  background: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                }}
+              />
               <Area
                 type="monotone"
                 dataKey="count"
-                stroke="#2563eb"
+                stroke="#667eea"
+                strokeWidth={2}
                 fillOpacity={1}
                 fill="url(#colorMsg)"
               />
@@ -80,10 +103,13 @@ function DashboardPage() {
           </ResponsiveContainer>
         </div>
       </div>
+
       <LogPanel logs={logs} />
     </div>
   );
 }
 
 export default DashboardPage;
+
+
 

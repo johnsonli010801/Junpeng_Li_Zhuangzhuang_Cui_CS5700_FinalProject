@@ -118,7 +118,7 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
     });
 
     return pc;
-  }, [conversationId, socket]);
+  }, [conversationId, socket, getLocalStream]);
 
   // 主叫：发起呼叫
   const startCall = useCallback(async () => {

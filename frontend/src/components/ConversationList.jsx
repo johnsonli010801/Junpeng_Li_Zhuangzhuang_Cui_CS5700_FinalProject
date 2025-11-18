@@ -31,7 +31,7 @@ export function ConversationList({
             </div>
             <div className="chatlist-meta">
               <div className="title-row">
-                <strong>{conv.name}</strong>
+                <strong>{conv.displayName || conv.name}</strong>
                 <span className="type-tag">{conv.isGroup ? '群聊' : '好友'}</span>
               </div>
               <small>成员 {conv.members.length}</small>

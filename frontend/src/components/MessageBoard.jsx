@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
+import { api } from '../api/client.js';
 
 export function MessageBoard({ messages, onSend, onUpload, currentUserId, disabled }) {
   const [text, setText] = useState('');
   const listRef = useRef(null);
   const fileInputRef = useRef(null);
+  const [downloading, setDownloading] = useState(null);
 
   useEffect(() => {
     if (listRef.current) {
@@ -26,6 +28,40 @@ export function MessageBoard({ messages, onSend, onUpload, currentUserId, disabl
     }
   };
 
+  const handleDownloadFile = async (fileId, fileName) => {
+    if (downloading === fileId) return;
+    
+    try {
+      setDownloading(fileId);
+      console.log('[MessageBoard] 开始下载文件:', fileId);
+      
+      // 使用axios下载，会自动携带Authorization header
+      const response = await api.get(`/files/${fileId}`, {
+        responseType: 'blob', // 重要：设置响应类型为blob
+      });
+      
+      console.log('[MessageBoard] 文件下载成功');
+      
+      // 创建blob URL并触发下载
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName || 'download';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      console.log('[MessageBoard] 文件已保存');
+    } catch (error) {
+      console.error('[MessageBoard] 文件下载失败:', error);
+      alert(error.response?.data?.message || '文件下载失败');
+    } finally {
+      setDownloading(null);
+    }
+  };
+
   return (
     <div className="chat-window">
       <div className="message-list" ref={listRef}>
@@ -36,11 +72,25 @@ export function MessageBoard({ messages, onSend, onUpload, currentUserId, disabl
           >
             <div className="bubble">
               <div className="bubble-content">
-                {msg.content}
-                {msg.type === 'file' && msg.fileUrl && (
-                  <a href={msg.fileUrl} target="_blank" rel="noreferrer">
-                    下载文件
-                  </a>
+                {msg.type === 'file' ? (
+                  <div className="file-message">
+                    <div className="file-icon">📎</div>
+                    <div className="file-info">
+                      <div className="file-name">{msg.content}</div>
+                      {msg.fileId && (
+                        <button
+                          type="button"
+                          className="file-download"
+                          onClick={() => handleDownloadFile(msg.fileId, msg.content)}
+                          disabled={downloading === msg.fileId}
+                        >
+                          {downloading === msg.fileId ? '⏳ 下载中...' : '📥 点击下载'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  msg.content
                 )}
               </div>
               <small>{new Date(msg.createdAt).toLocaleTimeString()}</small>

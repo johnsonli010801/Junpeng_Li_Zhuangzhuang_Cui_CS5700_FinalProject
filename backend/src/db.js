@@ -32,7 +32,18 @@ export function initDb() {
   }
 }
 
+// 用于防止并发写入的简单锁
+let isPersisting = false;
+let pendingPersist = false;
+
 export function persist() {
+  if (isPersisting) {
+    pendingPersist = true;
+    return;
+  }
+  
+  isPersisting = true;
+  
   try {
     db.write();
   } catch (error) {
@@ -46,8 +57,17 @@ export function persist() {
         'utf-8'
       );
     } else {
+      isPersisting = false;
       throw error;
     }
+  }
+  
+  isPersisting = false;
+  
+  // 如果有待处理的persist，立即执行
+  if (pendingPersist) {
+    pendingPersist = false;
+    setImmediate(() => persist());
   }
 }
 

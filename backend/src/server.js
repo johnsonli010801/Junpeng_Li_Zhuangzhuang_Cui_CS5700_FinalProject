@@ -29,9 +29,13 @@ import {
 
 const app = express();
 const httpServer = createServer(app);
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['http://localhost:5173', 'http://localhost:3000'];
+
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: '*',
+    origin: ALLOWED_ORIGINS,
     credentials: true,
   },
 });
@@ -58,8 +62,12 @@ initDb();
 hydrateLegacyData();
 seedDefaultConversation();
 
-app.use(cors());
-app.use(express.json({ limit: '2mb' }));
+app.use(cors({
+  origin: ALLOWED_ORIGINS,
+  credentials: true,
+}));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -71,15 +79,28 @@ app.post('/api/auth/register', async (req, res) => {
     if (!email || !password || !name) {
       return res.status(400).json({ message: '缺少必要字段' });
     }
-    if (db.data.users.find((u) => u.email === email)) {
+    
+    // 邮箱格式验证
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: '邮箱格式不正确' });
+    }
+    
+    // 标准化邮箱
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    // 检查邮箱是否已存在
+    const existingUser = db.data.users.find((u) => u.email === normalizedEmail);
+    if (existingUser) {
       return res.status(409).json({ message: '邮箱已注册' });
     }
+    
     const passwordHash = await hashPassword(password);
     const now = new Date().toISOString();
     const user = {
       id: nanoid(),
-      name,
-      email,
+      name: sanitizeInput(name), // 清理用户名
+      email: normalizedEmail, // 规范化邮箱
       passwordHash,
       mfaEnabled: false,
       mfaSecret: null,
@@ -88,6 +109,13 @@ app.post('/api/auth/register', async (req, res) => {
       createdAt: now,
       updatedAt: now,
     };
+    
+    // 二次检查（防止并发竞态条件）
+    const doubleCheck = db.data.users.find((u) => u.email === normalizedEmail);
+    if (doubleCheck) {
+      return res.status(409).json({ message: '邮箱已注册' });
+    }
+    
     db.data.users.push(user);
     const general = db.data.conversations.find((c) => c.id === 'general');
     if (general && !general.members.includes(user.id)) {
@@ -332,14 +360,29 @@ app.post('/api/conversations', authMiddleware, (req, res) => {
   if (!name) {
     return res.status(400).json({ message: '缺少会话名称' });
   }
-  const participants = Array.from(new Set([req.user.id, ...memberIds]));
-  if (!isGroup && participants.length !== 2) {
-    return res
-      .status(400)
-      .json({ message: '私聊会话需要且仅能有两位成员' });
+  
+  // 清理会话名称
+  const cleanName = sanitizeInput(name);
+  if (!cleanName) {
+    return res.status(400).json({ message: '会话名称不能为空' });
   }
-
+  
+  const participants = Array.from(new Set([req.user.id, ...memberIds]));
+  
+  // 私聊验证
   if (!isGroup) {
+    if (memberIds.length === 0) {
+      return res.status(400).json({ 
+        message: '私聊需要指定对方用户ID' 
+      });
+    }
+    if (participants.length !== 2) {
+      return res.status(400).json({ 
+        message: '私聊会话需要且仅能有两位成员' 
+      });
+    }
+    
+    // 检查是否已存在相同的私聊
     const existing = db.data.conversations.find(
       (conv) =>
         !conv.isGroup &&
@@ -353,7 +396,7 @@ app.post('/api/conversations', authMiddleware, (req, res) => {
 
   const conversation = {
     id: nanoid(),
-    name,
+    name: cleanName,
     isGroup,
     members: participants,
     createdBy: req.user.id,
@@ -381,15 +424,131 @@ app.post('/api/conversations/:id/members', authMiddleware, (req, res) => {
   if (!conversation) {
     return res.status(404).json({ message: '会话不存在' });
   }
-  if (conversation.createdBy !== req.user.id && !req.user.roles?.includes('admin')) {
-    return res.status(403).json({ message: '只有创建者或管理员可以管理成员' });
+  
+  // 验证是否是群聊
+  if (!conversation.isGroup) {
+    return res.status(400).json({ message: '私聊不支持添加成员' });
   }
+  
+  // 验证权限：创建者、管理员或现有成员可以邀请
+  if (!conversation.members.includes(req.user.id) && !req.user.roles?.includes('admin')) {
+    return res.status(403).json({ message: '无权添加成员' });
+  }
+  
   const { memberIds = [] } = req.body;
+  if (!Array.isArray(memberIds) || memberIds.length === 0) {
+    return res.status(400).json({ message: '请指定要添加的成员' });
+  }
+  
+  // 验证要添加的用户都存在
+  const validMemberIds = memberIds.filter(id => 
+    db.data.users.some(u => u.id === id)
+  );
+  
   conversation.members = Array.from(
-    new Set([...conversation.members, ...memberIds])
+    new Set([...conversation.members, ...validMemberIds])
   );
   persist();
+  
+  // 通知所有成员
+  io.to(conversation.id).emit('conversation:updated', { conversation });
+  
+  recordLog('info', '添加群成员', { 
+    conversationId: conversation.id, 
+    addedBy: req.user.id,
+    newMembers: validMemberIds,
+  });
+  
   res.json({ conversation });
+});
+
+// 退出群聊
+app.post('/api/conversations/:id/leave', authMiddleware, (req, res) => {
+  const conversation = findConversation(req.params.id);
+  if (!conversation) {
+    return res.status(404).json({ message: '会话不存在' });
+  }
+  
+  if (!conversation.isGroup) {
+    return res.status(400).json({ message: '私聊不支持退出操作' });
+  }
+  
+  if (!conversation.members.includes(req.user.id)) {
+    return res.status(403).json({ message: '您不在该群聊中' });
+  }
+  
+  // 如果是群主退出，解散群聊
+  if (conversation.createdBy === req.user.id) {
+    // 删除群聊
+    const index = db.data.conversations.findIndex(c => c.id === conversation.id);
+    if (index !== -1) {
+      db.data.conversations.splice(index, 1);
+    }
+    persist();
+    
+    // 通知所有成员群已解散
+    io.to(conversation.id).emit('conversation:dissolved', {
+      conversationId: conversation.id,
+      message: '群主已退出，群聊已解散',
+    });
+    
+    recordLog('info', '群主退出，群聊解散', { 
+      conversationId: conversation.id, 
+      creatorId: req.user.id,
+    });
+    
+    return res.json({ message: '您已退出，群聊已解散' });
+  }
+  
+  // 普通成员退出
+  conversation.members = conversation.members.filter(id => id !== req.user.id);
+  persist();
+  
+  // 通知其他成员
+  io.to(conversation.id).emit('conversation:updated', { conversation });
+  
+  recordLog('info', '用户退出群聊', { 
+    conversationId: conversation.id, 
+    userId: req.user.id,
+  });
+  
+  res.json({ message: '已退出群聊' });
+});
+
+// 删除群聊（仅群主）
+app.delete('/api/conversations/:id', authMiddleware, (req, res) => {
+  const conversation = findConversation(req.params.id);
+  if (!conversation) {
+    return res.status(404).json({ message: '会话不存在' });
+  }
+  
+  if (!conversation.isGroup) {
+    return res.status(400).json({ message: '私聊不支持删除操作' });
+  }
+  
+  if (conversation.createdBy !== req.user.id && !req.user.roles?.includes('admin')) {
+    return res.status(403).json({ message: '只有群主或管理员可以删除群聊' });
+  }
+  
+  // 删除群聊
+  const index = db.data.conversations.findIndex(c => c.id === conversation.id);
+  if (index !== -1) {
+    db.data.conversations.splice(index, 1);
+  }
+  persist();
+  
+  // 通知所有成员
+  io.to(conversation.id).emit('conversation:deleted', {
+    conversationId: conversation.id,
+    message: '群聊已被删除',
+  });
+  
+  recordLog('info', '删除群聊', { 
+    conversationId: conversation.id, 
+    deletedBy: req.user.id,
+  });
+  
+  res.json({ message: '群聊已删除' });
 });
 
 app.post('/api/conversations/:id/announcement', authMiddleware, (req, res) => {
@@ -430,9 +589,22 @@ app.post(
   authMiddleware,
   upload.single('file'),
   (req, res) => {
+    // 检查文件是否上传
+    if (!req.file) {
+      return res.status(400).json({ message: '未检测到文件' });
+    }
+    
     const { conversationId } = req.body;
+    if (!conversationId) {
+      return res.status(400).json({ message: '缺少会话ID' });
+    }
+    
     const conversation = findConversation(conversationId);
-    if (!conversation || !conversation.members.includes(req.user.id)) {
+    if (!conversation) {
+      return res.status(404).json({ message: '会话不存在' });
+    }
+    
+    if (!conversation.members.includes(req.user.id)) {
       return res.status(403).json({ message: '无权上传到该会话' });
     }
     
@@ -458,17 +630,26 @@ app.post(
       conversationId,
       senderId: req.user.id,
       type: 'file',
-      content: `${req.user.name} 分享了文件`,
+      content: `${req.user.name} 分享了文件: ${fileEntry.originalName}`,
       fileId: fileEntry.id,
     });
     persist();
-    io.to(conversationId).emit('message:new', message);
+    
+    const messageWithSender = {
+      ...message,
+      sender: sanitizeUser(req.user),
+    };
+    
+    console.log('[Server] 广播文件消息:', messageWithSender);
+    io.to(conversationId).emit('message:new', messageWithSender);
+    
     recordLog('info', '文件上传', {
       conversationId,
       fileId: fileEntry.id,
       uploaderId: req.user.id,
+      fileName: fileEntry.originalName,
     });
-    res.status(201).json({ file: fileEntry, message });
+    res.status(201).json({ file: fileEntry, message: messageWithSender });
   }
 );
 
@@ -658,10 +839,21 @@ io.on('connection', (socket) => {
     if (!conversation || !conversation.members.includes(user.id)) {
       return socket.emit('error', { message: '无法发送到该会话' });
     }
+    
+    // 验证消息内容
+    if (!content || typeof content !== 'string') {
+      return socket.emit('error', { message: '消息内容不能为空' });
+    }
+    
+    const sanitizedContent = sanitizeInput(content);
+    if (!sanitizedContent || sanitizedContent.trim().length === 0) {
+      return socket.emit('error', { message: '消息内容不能为空' });
+    }
+    
     const message = createMessage({
       conversationId,
       senderId: user.id,
-      content: sanitizeInput(content),
+      content: sanitizedContent,
       type: 'text',
     });
     persist();

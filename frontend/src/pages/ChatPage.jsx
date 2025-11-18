@@ -66,8 +66,15 @@ function ChatPage() {
   useEffect(() => {
     if (!socket) return;
     const handleIncoming = (message) => {
+      console.log('[ChatPage] 收到新消息:', message);
       if (message.conversationId === selectedConversation?.id) {
-        setRawMessages((prev) => [...prev, message]);
+        setRawMessages((prev) => {
+          // 避免重复添加
+          if (prev.some(m => m.id === message.id)) {
+            return prev;
+          }
+          return [...prev, message];
+        });
       }
     };
     const handleRing = ({ conversationId, from }) => {
@@ -100,11 +107,46 @@ function ChatPage() {
     const handleFriendUpdate = () => {
       refreshFriends();
     };
+    const handleConversationUpdated = async ({ conversation }) => {
+      // 刷新会话列表
+      const { data } = await api.get('/conversations');
+      setConversations(data.conversations);
+      
+      // 如果当前会话被更新，也更新选中的会话
+      if (selectedConversation?.id === conversation.id) {
+        const updated = data.conversations.find(c => c.id === conversation.id);
+        if (updated) {
+          setSelectedConversation(updated);
+        }
+      }
+    };
+    const handleConversationDeleted = async ({ conversationId, message }) => {
+      alert(message || '群聊已被删除');
+      setConversations(prev => prev.filter(c => c.id !== conversationId));
+      if (selectedConversation?.id === conversationId) {
+        setSelectedConversation(null);
+      }
+    };
+    const handleConversationDissolved = async ({ conversationId, message }) => {
+      alert(message || '群聊已解散');
+      setConversations(prev => prev.filter(c => c.id !== conversationId));
+      if (selectedConversation?.id === conversationId) {
+        setSelectedConversation(null);
+      }
+    };
+    
     socket.on('friends:update', handleFriendUpdate);
+    socket.on('conversation:updated', handleConversationUpdated);
+    socket.on('conversation:deleted', handleConversationDeleted);
+    socket.on('conversation:dissolved', handleConversationDissolved);
+    
     return () => {
       socket.off('friends:update', handleFriendUpdate);
+      socket.off('conversation:updated', handleConversationUpdated);
+      socket.off('conversation:deleted', handleConversationDeleted);
+      socket.off('conversation:dissolved', handleConversationDissolved);
     };
-  }, [socket, refreshFriends]);
+  }, [socket, refreshFriends, selectedConversation]);
 
   useEffect(() => {
     if (!selectedConversation) return;
@@ -120,16 +162,34 @@ function ChatPage() {
     fetchMessages();
   }, [selectedConversation]);
 
-  const enrichMessage = (message) => {
-    const sender = users.find((u) => u.id === message.senderId);
-    return {
+  const enrichMessage = useCallback((message) => {
+    // 如果消息已经有sender对象（来自Socket），优先使用
+    const senderName = message.sender?.name || 
+                       message.senderName || 
+                       users.find((u) => u.id === message.senderId)?.name || 
+                       '系统';
+    
+    const enriched = {
       ...message,
-      senderName: sender?.name || '系统',
+      senderName,
       fileUrl: message.fileId
         ? `${API_BASE}/files/${message.fileId}`
         : undefined,
     };
-  };
+    
+    // 调试：打印文件消息
+    if (message.type === 'file') {
+      console.log('[enrichMessage] 文件消息:', {
+        id: enriched.id,
+        type: enriched.type,
+        fileId: enriched.fileId,
+        fileUrl: enriched.fileUrl,
+        content: enriched.content,
+      });
+    }
+    
+    return enriched;
+  }, [users]);
 
   const handleCreateGroup = async () => {
     const name = window.prompt('输入群聊名称');
@@ -148,13 +208,44 @@ function ChatPage() {
 
   const handleUploadFile = async (file) => {
     if (!selectedConversation) return;
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('conversationId', selectedConversation.id);
-    const { data } = await api.post('/files/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    setRawMessages((prev) => [...prev, data.message]);
+    console.log('[ChatPage] 开始上传文件:', file.name);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('conversationId', selectedConversation.id);
+      const { data } = await api.post('/files/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      console.log('[ChatPage] 文件上传成功:', data);
+      console.log('[ChatPage] 文件消息:', data.message);
+      console.log('[ChatPage] 文件ID:', data.file.id);
+      
+      // 文件消息会通过Socket广播，但我们也立即添加到界面
+      // 避免等待Socket延迟
+      if (data.message) {
+        setRawMessages((prev) => {
+          if (prev.some(m => m.id === data.message.id)) {
+            return prev;
+          }
+          return [...prev, data.message];
+        });
+      }
+    } catch (error) {
+      console.error('[ChatPage] 文件上传失败:', error);
+      console.error('[ChatPage] 错误详情:', error.response?.data);
+      
+      let errorMsg = '文件上传失败';
+      if (error.response?.status === 413) {
+        errorMsg = '文件太大！请上传小于25MB的文件';
+      } else if (error.response?.status === 400) {
+        errorMsg = error.response?.data?.message || '文件类型不支持或参数错误';
+      } else if (error.response?.data?.message) {
+        errorMsg = error.response.data.message;
+      }
+      
+      alert(errorMsg);
+    }
   };
 
   const handleSetupMfa = async () => {
@@ -195,7 +286,7 @@ function ChatPage() {
 
   const handleStartDirectChat = async (friend) => {
     const { data } = await api.post('/conversations', {
-      name: friend.name,
+      name: friend.name, // 使用好友名称作为会话名
       isGroup: false,
       memberIds: [friend.id],
     });
@@ -206,18 +297,120 @@ function ChatPage() {
     setSelectedConversation(data.conversation);
     setActiveNav('chats');
   };
+  
+  // 邀请好友进群
+  const handleInviteToGroup = async () => {
+    if (!selectedConversation || !selectedConversation.isGroup) return;
+    
+    // 显示好友列表供选择
+    const friendNames = friends.map(f => `${f.name} (${f.email})`).join('\n');
+    const input = window.prompt(`选择要邀请的好友（输入邮箱或ID）：\n\n您的好友：\n${friendNames}`);
+    if (!input) return;
+    
+    try {
+      // 查找好友
+      const friend = friends.find(f => 
+        f.email === input || f.id === input || f.name === input
+      );
+      
+      if (!friend) {
+        alert('未找到该好友');
+        return;
+      }
+      
+      await api.post(`/conversations/${selectedConversation.id}/members`, {
+        memberIds: [friend.id],
+      });
+      
+      // 刷新会话列表
+      const { data } = await api.get('/conversations');
+      setConversations(data.conversations);
+      alert(`已邀请 ${friend.name} 进群`);
+    } catch (error) {
+      alert(error.response?.data?.message || '邀请失败');
+    }
+  };
+  
+  // 退出群聊
+  const handleLeaveGroup = async () => {
+    if (!selectedConversation || !selectedConversation.isGroup) return;
+    
+    const isCreator = selectedConversation.createdBy === user?.id;
+    const confirmMsg = isCreator 
+      ? '您是群主，退出后群聊将解散。确认退出？'
+      : '确认退出该群聊？';
+    
+    if (!window.confirm(confirmMsg)) return;
+    
+    try {
+      await api.post(`/conversations/${selectedConversation.id}/leave`);
+      
+      // 从列表中移除该会话
+      setConversations(prev => prev.filter(c => c.id !== selectedConversation.id));
+      setSelectedConversation(null);
+      alert('已退出群聊');
+    } catch (error) {
+      alert(error.response?.data?.message || '退出失败');
+    }
+  };
+  
+  // 删除群聊（群主）
+  const handleDeleteGroup = async () => {
+    if (!selectedConversation || !selectedConversation.isGroup) return;
+    if (selectedConversation.createdBy !== user?.id) {
+      alert('只有群主可以删除群聊');
+      return;
+    }
+    
+    if (!window.confirm('确认删除该群聊？此操作不可恢复！')) return;
+    
+    try {
+      await api.delete(`/conversations/${selectedConversation.id}`);
+      
+      // 从列表中移除该会话
+      setConversations(prev => prev.filter(c => c.id !== selectedConversation.id));
+      setSelectedConversation(null);
+      alert('群聊已删除');
+    } catch (error) {
+      alert(error.response?.data?.message || '删除失败');
+    }
+  };
 
   const displayMessages = useMemo(
     () => rawMessages.map(enrichMessage),
-    [rawMessages, users]
+    [rawMessages, enrichMessage]
   );
 
+  // 获取私聊会话的显示名称
+  const getConversationDisplayName = useCallback((conv) => {
+    if (conv.isGroup) {
+      return conv.name;
+    }
+    
+    // 私聊：显示对方的名字
+    const otherMemberId = conv.members.find(id => id !== user?.id);
+    if (otherMemberId) {
+      const otherUser = users.find(u => u.id === otherMemberId) ||
+                       friends.find(f => f.id === otherMemberId);
+      if (otherUser) {
+        return otherUser.name;
+      }
+    }
+    
+    return conv.name || '私聊';
+  }, [user, users, friends]);
+  
   const filteredConversations = useMemo(() => {
-    if (!searchTerm) return conversations;
-    return conversations.filter((c) =>
-      c.name.toLowerCase().includes(searchTerm.toLowerCase())
+    const convsWithNames = conversations.map(c => ({
+      ...c,
+      displayName: getConversationDisplayName(c),
+    }));
+    
+    if (!searchTerm) return convsWithNames;
+    return convsWithNames.filter((c) =>
+      c.displayName.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [searchTerm, conversations]);
+  }, [searchTerm, conversations, getConversationDisplayName]);
 
   const navBadge =
     friendRequests.incoming.length > 0 ? <span className="dot" /> : null;
@@ -285,10 +478,28 @@ function ChatPage() {
           <>
             <div className="chat-header">
               <div>
-                <strong>{selectedConversation.name}</strong>
+                <strong>{getConversationDisplayName(selectedConversation)}</strong>
                 <small>{selectedConversation.isGroup ? '群聊' : '好友聊天'}</small>
               </div>
               <div className="chat-actions">
+                {selectedConversation.isGroup && (
+                  <>
+                    <button
+                      className="icon-btn"
+                      onClick={handleInviteToGroup}
+                      title="邀请好友进群"
+                    >
+                      ➕👥
+                    </button>
+                    <button
+                      className="icon-btn"
+                      onClick={handleLeaveGroup}
+                      title={selectedConversation.createdBy === user?.id ? '删除群聊' : '退出群聊'}
+                    >
+                      {selectedConversation.createdBy === user?.id ? '🗑️' : '🚪'}
+                    </button>
+                  </>
+                )}
                 <button
                   className="icon-btn"
                   onClick={() =>
@@ -298,6 +509,7 @@ function ChatPage() {
                       from: user,
                     })
                   }
+                  title="视频通话"
                 >
                   📹
                 </button>

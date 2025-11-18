@@ -56,55 +56,77 @@ function LoginPage() {
         <p>支持 MFA、加密消息、文件共享与实时协作</p>
         <form onSubmit={handleSubmit}>
           {mode === 'register' && (
-            <label>
-              姓名
+            <div className="form-group">
+              <label htmlFor="name">姓名</label>
               <input
+                id="name"
                 name="name"
+                type="text"
                 value={form.name}
                 onChange={handleChange}
+                placeholder="请输入您的姓名"
                 required
               />
-            </label>
+            </div>
           )}
-          <label>
-            邮箱
+          <div className="form-group">
+            <label htmlFor="email">邮箱</label>
             <input
+              id="email"
               type="email"
               name="email"
               value={form.email}
               onChange={handleChange}
+              placeholder="example@email.com"
               required
             />
-          </label>
-          <label>
-            密码
+          </div>
+          <div className="form-group">
+            <label htmlFor="password">密码</label>
             <input
+              id="password"
               type="password"
               name="password"
               value={form.password}
               onChange={handleChange}
+              placeholder="请输入密码"
               required
             />
-          </label>
-          {error && <small style={{ color: '#e11d48' }}>{error}</small>}
-          <button className="btn primary" type="submit" disabled={loading}>
-            {loading ? '处理中...' : mode === 'login' ? '登录' : '注册'}
+          </div>
+          {error && (
+            <div className={error.includes('成功') ? 'success-message' : 'error-message'}>
+              {error}
+            </div>
+          )}
+          <button className="btn primary btn-lg" type="submit" disabled={loading}>
+            {loading ? (
+              <>
+                <span className="loading dark"></span>
+                处理中...
+              </>
+            ) : (
+              mode === 'login' ? '登录' : '注册'
+            )}
           </button>
         </form>
-        <button
-          className="btn secondary"
-          type="button"
-          onClick={() => {
-            setMode(mode === 'login' ? 'register' : 'login');
-            setError('');
-          }}
-        >
-          {mode === 'login' ? '没有账号？立即注册' : '已有账号？去登录'}
-        </button>
+        <div className="auth-footer">
+          {mode === 'login' ? '还没有账号？' : '已有账号？'}
+          <button
+            type="button"
+            onClick={() => {
+              setMode(mode === 'login' ? 'register' : 'login');
+              setError('');
+            }}
+          >
+            {mode === 'login' ? '立即注册' : '去登录'}
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
 export default LoginPage;
+
+
 
