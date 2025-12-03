@@ -6,18 +6,18 @@ export function ContactsPanel({
   onRespondRequest,
 }) {
   return (
-    <div className="contacts-panel">
+      <div className="contacts-panel">
       <div className="contacts-toolbar">
-        <strong>通讯录</strong>
+        <strong>Contacts</strong>
         <button className="btn primary" type="button" onClick={onAddFriend}>
-          添加好友
+          Add friend
         </button>
       </div>
 
       <section>
-        <h4>我的好友</h4>
+        <h4>My friends</h4>
         <div className="contacts-scroll">
-          {friends.length === 0 && <p className="empty-hint">还没有好友，先去添加吧</p>}
+          {friends.length === 0 && <p className="empty-hint">No friends yet. Try adding some.</p>}
           {friends.map((friend) => (
             <div key={friend.id} className="contact-item">
               <div className="avatar">{friend.name?.slice(0, 1).toUpperCase()}</div>
@@ -30,7 +30,7 @@ export function ContactsPanel({
                 type="button"
                 onClick={() => onStartChat(friend)}
               >
-                发起聊天
+                Start chat
               </button>
             </div>
           ))}
@@ -38,10 +38,10 @@ export function ContactsPanel({
       </section>
 
       <section>
-        <h4>新的朋友</h4>
+        <h4>New friends</h4>
         <div className="contacts-scroll">
           {requests.incoming.length === 0 && requests.outgoing.length === 0 && (
-            <p className="empty-hint">暂无好友申请</p>
+            <p className="empty-hint">No friend requests</p>
           )}
 
           {requests.incoming.map((req) => (
@@ -57,14 +57,14 @@ export function ContactsPanel({
                   type="button"
                   onClick={() => onRespondRequest(req.id, 'accept')}
                 >
-                  同意
+                  Accept
                 </button>
                 <button
                   className="btn ghost"
                   type="button"
                   onClick={() => onRespondRequest(req.id, 'decline')}
                 >
-                  拒绝
+                  Decline
                 </button>
               </div>
             </div>
@@ -75,7 +75,7 @@ export function ContactsPanel({
               <div className="avatar">{req.to?.name?.slice(0, 1).toUpperCase()}</div>
               <div className="contact-meta">
                 <strong>{req.to?.name}</strong>
-                <small>等待对方同意</small>
+                <small>Waiting for approval</small>
               </div>
             </div>
           ))}

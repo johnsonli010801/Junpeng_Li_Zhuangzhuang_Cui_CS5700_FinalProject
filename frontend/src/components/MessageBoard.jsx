@@ -33,16 +33,16 @@ export function MessageBoard({ messages, onSend, onUpload, currentUserId, disabl
     
     try {
       setDownloading(fileId);
-      console.log('[MessageBoard] 开始下载文件:', fileId);
+      console.log('[MessageBoard] start downloading file:', fileId);
       
-      // 使用axios下载，会自动携带Authorization header
+      // Use axios to download; it will automatically carry Authorization header
       const response = await api.get(`/files/${fileId}`, {
-        responseType: 'blob', // 重要：设置响应类型为blob
+        responseType: 'blob', // important: treat response as blob
       });
       
-      console.log('[MessageBoard] 文件下载成功');
+      console.log('[MessageBoard] file downloaded successfully');
       
-      // 创建blob URL并触发下载
+      // Create blob URL and trigger browser download
       const blob = new Blob([response.data]);
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -53,10 +53,10 @@ export function MessageBoard({ messages, onSend, onUpload, currentUserId, disabl
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
-      console.log('[MessageBoard] 文件已保存');
+      console.log('[MessageBoard] file saved');
     } catch (error) {
-      console.error('[MessageBoard] 文件下载失败:', error);
-      alert(error.response?.data?.message || '文件下载失败');
+      console.error('[MessageBoard] file download failed:', error);
+      alert(error.response?.data?.message || 'File download failed');
     } finally {
       setDownloading(null);
     }
@@ -84,7 +84,7 @@ export function MessageBoard({ messages, onSend, onUpload, currentUserId, disabl
                           onClick={() => handleDownloadFile(msg.fileId, msg.content)}
                           disabled={downloading === msg.fileId}
                         >
-                          {downloading === msg.fileId ? '⏳ 下载中...' : '📥 点击下载'}
+                          {downloading === msg.fileId ? '⏳ Downloading...' : '📥 Download'}
                         </button>
                       )}
                     </div>
@@ -98,7 +98,7 @@ export function MessageBoard({ messages, onSend, onUpload, currentUserId, disabl
           </div>
         ))}
         {messages.length === 0 && (
-          <div className="empty-hint">开始聊天吧～</div>
+          <div className="empty-hint">Start a conversation</div>
         )}
       </div>
       <form className="composer" onSubmit={handleSend}>
@@ -119,13 +119,13 @@ export function MessageBoard({ messages, onSend, onUpload, currentUserId, disabl
         />
         <input
           className="composer-input"
-          placeholder={disabled ? '请选择会话' : '发送消息...'}
+          placeholder={disabled ? 'Select a conversation' : 'Type a message...'}
           value={text}
           disabled={disabled}
           onChange={(e) => setText(e.target.value)}
         />
         <button className="btn primary" type="submit" disabled={disabled}>
-          发送
+          Send
         </button>
       </form>
     </div>

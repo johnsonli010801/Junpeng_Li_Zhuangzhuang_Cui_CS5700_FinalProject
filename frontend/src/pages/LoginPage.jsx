@@ -7,6 +7,7 @@ function LoginPage() {
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
   const setPendingChallenge = useAuthStore((state) => state.setPendingChallenge);
+  const setMfaDebugCode = useAuthStore((state) => state.setMfaDebugCode);
   const [form, setForm] = useState({ email: '', password: '', name: '' });
   const [mode, setMode] = useState('login');
   const [loading, setLoading] = useState(false);
@@ -28,7 +29,7 @@ function LoginPage() {
           password: form.password,
         });
         setMode('login');
-        setError('注册成功，请登录');
+        setError('Registration successful, please sign in');
       } else {
         const { data } = await api.post('/auth/login', {
           email: form.email,
@@ -36,14 +37,18 @@ function LoginPage() {
         });
         if (data.requiresMfa) {
           setPendingChallenge(data.challengeId);
+          if (data.mfaCode) {
+            setMfaDebugCode(data.mfaCode);
+          }
           navigate('/mfa');
         } else {
           setAuth({ token: data.token, user: data.user });
+          setMfaDebugCode(null);
           navigate('/app');
         }
       }
     } catch (err) {
-      setError(err.response?.data?.message || '操作失败，请重试');
+      setError(err.response?.data?.message || 'Operation failed, please try again');
     } finally {
       setLoading(false);
     }
@@ -52,25 +57,25 @@ function LoginPage() {
   return (
     <div className="login-page">
       <div className="auth-card">
-        <h1>YouChat 安全通讯</h1>
-        <p>支持 MFA、加密消息、文件共享与实时协作</p>
+        <h1>YouChat Secure Communication</h1>
+        <p>Supports MFA, encrypted messages, file sharing and realtime collaboration</p>
         <form onSubmit={handleSubmit}>
           {mode === 'register' && (
             <div className="form-group">
-              <label htmlFor="name">姓名</label>
+            <label htmlFor="name">Name</label>
               <input
                 id="name"
                 name="name"
                 type="text"
                 value={form.name}
                 onChange={handleChange}
-                placeholder="请输入您的姓名"
+                placeholder="Enter your name"
                 required
               />
             </div>
           )}
           <div className="form-group">
-            <label htmlFor="email">邮箱</label>
+            <label htmlFor="email">Email</label>
             <input
               id="email"
               type="email"
@@ -82,19 +87,19 @@ function LoginPage() {
             />
           </div>
           <div className="form-group">
-            <label htmlFor="password">密码</label>
+            <label htmlFor="password">Password</label>
             <input
               id="password"
               type="password"
               name="password"
               value={form.password}
               onChange={handleChange}
-              placeholder="请输入密码"
+                placeholder="Enter your password"
               required
             />
           </div>
           {error && (
-            <div className={error.includes('成功') ? 'success-message' : 'error-message'}>
+            <div className={error.toLowerCase().includes('success') ? 'success-message' : 'error-message'}>
               {error}
             </div>
           )}
@@ -102,15 +107,15 @@ function LoginPage() {
             {loading ? (
               <>
                 <span className="loading dark"></span>
-                处理中...
+                Processing...
               </>
             ) : (
-              mode === 'login' ? '登录' : '注册'
+              mode === 'login' ? 'Sign in' : 'Sign up'
             )}
           </button>
         </form>
         <div className="auth-footer">
-          {mode === 'login' ? '还没有账号？' : '已有账号？'}
+          {mode === 'login' ? "Don't have an account yet?" : 'Already have an account?'}
           <button
             type="button"
             onClick={() => {
@@ -118,7 +123,7 @@ function LoginPage() {
               setError('');
             }}
           >
-            {mode === 'login' ? '立即注册' : '去登录'}
+            {mode === 'login' ? 'Sign up' : 'Sign in'}
           </button>
         </div>
       </div>

@@ -1,5 +1,5 @@
 /* ============================================
-   应用整体布局 - 已优化
+   App shell layout (tuned)
    ============================================ */
 
 .app-shell {
@@ -102,8 +102,30 @@
   padding: 1.5rem 0;
 }
 
+/* MFA debug code badge (bottom-right) */
+.mfa-debug-hint {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 1000;
+  background: rgba(17, 24, 39, 0.9);
+  color: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.mfa-debug-hint strong {
+  letter-spacing: 0.12em;
+  font-weight: 700;
+}
+
 /* ============================================
-   通用按钮样式
+   Generic button styles
    ============================================ */
 
 .btn {
@@ -206,7 +228,7 @@
 }
 
 /* ============================================
-   面板和卡片
+   Panels and cards
    ============================================ */
 
 .panel {
@@ -246,7 +268,7 @@
 }
 
 /* ============================================
-   头像组件
+   Avatar components
    ============================================ */
 
 .avatar {
@@ -282,13 +304,13 @@
 }
 
 /* ============================================
-   微信风格布局
+   WeChat-style shell layout
    ============================================ */
 
 .wechat-shell {
   display: flex;
   height: 100%;
-  max-width: 1200px;
+  max-width: 1500px;
   width: 100%;
   background: white;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
@@ -298,7 +320,7 @@
 }
 
 .wechat-sidebar {
-  width: 70px;
+  width: 96px;
   background: var(--wechat-sidebar);
   color: white;
   display: flex;
@@ -355,11 +377,11 @@
 }
 
 /* ============================================
-   会话列表面板
+   Conversation list panel
    ============================================ */
 
 .wechat-list-pane {
-  width: 280px;
+  width: 360px;
   background: var(--wechat-panel);
   border-right: 1px solid var(--wechat-border);
   display: flex;
@@ -465,15 +487,15 @@
 }
 
 /* ============================================
-   通讯录面板
+   Contacts panel
    ============================================ */
 
 .contacts-panel section {
-  margin-bottom: 1.5rem;
+  margin-bottom: 2.5 rem;
 }
 
 .contacts-panel h4 {
-  font-size: 0.8125rem;
+  font-size: 0.6 rem;
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
@@ -486,7 +508,8 @@
   align-items: center;
   gap: 0.75rem;
   background: white;
-  padding: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  width: 100%;
   border-radius: var(--radius-md);
   transition: all 0.2s ease;
   cursor: pointer;
@@ -526,7 +549,7 @@
 }
 
 /* ============================================
-   聊天窗口
+   Chat window
    ============================================ */
 
 .wechat-chat-pane {
@@ -641,7 +664,7 @@
   font-size: 0.6875rem;
 }
 
-/* 文件消息样式 */
+/* File message styles */
 .file-message {
   display: flex;
   align-items: center;
@@ -742,7 +765,7 @@
 }
 
 /* ============================================
-   视频通话弹窗
+   Video call modal
    ============================================ */
 
 .video-modal {
@@ -934,7 +957,7 @@
 }
 
 /* ============================================
-   登录和 MFA 页面
+   Login and MFA pages
    ============================================ */
 
 .login-page,
@@ -1051,7 +1074,7 @@
 }
 
 /* ============================================
-   设置和安全面板
+   Settings and security panels
    ============================================ */
 
 .settings-pane {
@@ -1092,11 +1115,11 @@
 }
 
 /* ============================================
-   日志表格
+   Log table
    ============================================ */
 
 .log-table {
-  width: 200%;
+  width: 100%;
   border-collapse: collapse;
 }
 
@@ -1146,7 +1169,7 @@
 }
 
 /* ============================================
-   仪表盘
+   Dashboard
    ============================================ */
 
 .dashboard-container {
@@ -1226,7 +1249,7 @@
 }
 
 /* ============================================
-   响应式设计
+   Responsive design
    ============================================ */
 
 @media (max-width: 768px) {
@@ -1300,7 +1323,7 @@
 }
 
 /* ============================================
-   加载动画
+   Loading animation
    ============================================ */
 
 @keyframes spin {

@@ -11,12 +11,12 @@ export function ConversationList({
       <div className="chatlist-toolbar">
         <input
           className="chatlist-search"
-          placeholder="搜索"
+          placeholder="Search"
           value={searchTerm}
           onChange={(e) => onSearchChange(e.target.value)}
         />
         <button className="btn ghost" type="button" onClick={onCreateGroup}>
-          + 群聊
+          + New group
         </button>
       </div>
       <div className="chatlist-scroll">
@@ -27,19 +27,19 @@ export function ConversationList({
             onClick={() => onSelect(conv)}
           >
             <div className="avatar">
-              {conv.isGroup ? '群' : conv.name.slice(0, 1).toUpperCase()}
+              {conv.isGroup ? 'G' : conv.name.slice(0, 1).toUpperCase()}
             </div>
             <div className="chatlist-meta">
               <div className="title-row">
                 <strong>{conv.displayName || conv.name}</strong>
-                <span className="type-tag">{conv.isGroup ? '群聊' : '好友'}</span>
+                <span className="type-tag">{conv.isGroup ? 'Group' : 'Friend'}</span>
               </div>
-              <small>成员 {conv.members.length}</small>
+              <small>Members {conv.members.length}</small>
             </div>
           </button>
         ))}
         {conversations.length === 0 && (
-          <div className="empty-hint">暂无会话，先去添加好友或创建群聊吧</div>
+          <div className="empty-hint">No conversations yet. Add friends or create a group.</div>
         )}
       </div>
     </div>

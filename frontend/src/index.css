@@ -1,16 +1,16 @@
 /* ============================================
-   全局设计系统 - YouChat
+   Global design system - YouChat
    ============================================ */
 
 :root {
-  /* 主色调 */
+  /* Primary colors */
   --primary-green: #07c160;
   --primary-green-hover: #06ad56;
   --primary-green-light: #d1f3d1;
   --primary-blue: #1677ff;
   --primary-purple: #722ed1;
   
-  /* 中性色 */
+  /* Neutral colors */
   --gray-50: #fafafa;
   --gray-100: #f5f5f5;
   --gray-200: #eeeeee;
@@ -22,13 +22,13 @@
   --gray-800: #424242;
   --gray-900: #212121;
   
-  /* 语义色 */
+  /* Semantic colors */
   --success: #52c41a;
   --warning: #faad14;
   --error: #ff4d4f;
   --info: #1677ff;
   
-  /* 微信风格色 */
+  /* WeChat style colors */
   --wechat-green: #07c160;
   --wechat-dark: #191919;
   --wechat-sidebar: #2c2c2c;
@@ -36,33 +36,33 @@
   --wechat-border: #e5e5e5;
   --wechat-chat-bg: #f5f5f5;
   
-  /* 文本色 */
+  /* Text colors */
   --text-primary: #1f2937;
   --text-secondary: #6b7280;
   --text-tertiary: #9ca3af;
   --text-inverse: #ffffff;
   
-  /* 阴影 */
+  /* Shadows */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   
-  /* 圆角 */
+  /* Border radii */
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
   --radius-xl: 18px;
   --radius-full: 9999px;
   
-  /* 间距 */
+  /* Spacing scale */
   --spacing-xs: 0.25rem;
   --spacing-sm: 0.5rem;
   --spacing-md: 1rem;
   --spacing-lg: 1.5rem;
   --spacing-xl: 2rem;
   
-  /* 字体 */
+  /* Typography */
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 
                'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   line-height: 1.6;
@@ -76,7 +76,7 @@
 }
 
 /* ============================================
-   基础重置
+   Base reset
    ============================================ */
 
 * {
@@ -102,7 +102,7 @@ body {
 }
 
 /* ============================================
-   通用元素样式
+   Generic element styles
    ============================================ */
 
 a {
@@ -135,7 +135,7 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* ============================================
-   滚动条美化
+   Scrollbar styling
    ============================================ */
 
 ::-webkit-scrollbar {
@@ -159,7 +159,7 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* ============================================
-   工具类
+   Utility classes
    ============================================ */
 
 .text-center { text-align: center; }

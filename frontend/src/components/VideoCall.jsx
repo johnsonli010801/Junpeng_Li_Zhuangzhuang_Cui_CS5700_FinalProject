@@ -7,14 +7,14 @@ const rtcConfig = {
   ],
 };
 
-// 状态机：idle -> dialing/ringing -> connecting -> connected -> ended
+// State machine: idle -> dialing/ringing -> connecting -> connected -> ended
 const CALL_STATES = {
   IDLE: 'idle',
-  DIALING: 'dialing',       // 主叫：等待对方接听
-  RINGING: 'ringing',       // 被叫：收到来电
-  CONNECTING: 'connecting', // 双方：WebRTC 握手中
-  CONNECTED: 'connected',   // 双方：通话中
-  ENDED: 'ended',          // 通话结束
+  DIALING: 'dialing',       // Caller: waiting for callee to answer
+  RINGING: 'ringing',       // Callee: incoming call
+  CONNECTING: 'connecting', // Both: WebRTC handshake in progress
+  CONNECTED: 'connected',   // Both: call in progress
+  ENDED: 'ended',          // Call ended
 };
 
 export function VideoCall({ mode, conversationId, socket, userId, onClose, caller }) {
@@ -26,30 +26,30 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
   const localStreamRef = useRef(null);
   const pendingCandidatesRef = useRef([]);
 
-  // 清理资源
+  // Cleanup resources
   const cleanup = useCallback(() => {
-    console.log('[VideoCall] 清理资源');
+    console.log('[VideoCall] cleanup');
     
-    // 关闭 peer connection
+    // Close peer connection
     if (peerRef.current) {
       peerRef.current.close();
       peerRef.current = null;
     }
     
-    // 停止本地流
+    // Stop local media stream
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => track.stop());
       localStreamRef.current = null;
     }
     
-    // 清空视频元素
+    // Clear video elements
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     
     pendingCandidatesRef.current = [];
   }, []);
 
-  // 获取本地媒体流
+  // Get local media stream
   const getLocalStream = useCallback(async () => {
     if (localStreamRef.current) return localStreamRef.current;
     
@@ -62,30 +62,30 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
-      console.log('[VideoCall] 获取本地流成功');
+      console.log('[VideoCall] got local media stream');
       return stream;
     } catch (error) {
-      console.error('[VideoCall] 获取媒体失败:', error);
-      alert('无法访问摄像头/麦克风，请检查权限');
+      console.error('[VideoCall] failed to get media:', error);
+      alert('Cannot access camera/microphone, please check permissions');
       throw error;
     }
   }, []);
 
-  // 创建 PeerConnection
+  // Create PeerConnection
   const createPeerConnection = useCallback(async () => {
     if (peerRef.current) {
-      console.log('[VideoCall] PeerConnection 已存在');
+      console.log('[VideoCall] PeerConnection already exists');
       return peerRef.current;
     }
 
-    console.log('[VideoCall] 创建 PeerConnection');
+    console.log('[VideoCall] creating PeerConnection');
     const pc = new RTCPeerConnection(rtcConfig);
     peerRef.current = pc;
 
-    // ICE candidate 事件
+    // ICE candidate event
     pc.onicecandidate = (event) => {
       if (event.candidate && socket) {
-        console.log('[VideoCall] 发送 ICE candidate');
+        console.log('[VideoCall] sending ICE candidate');
         socket.emit('webrtc:signal', {
           conversationId,
           payload: { type: 'candidate', candidate: event.candidate },
@@ -93,25 +93,25 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
       }
     };
 
-    // 接收远端流
+    // Receive remote stream
     pc.ontrack = (event) => {
-      console.log('[VideoCall] 收到远端流');
+      console.log('[VideoCall] received remote stream');
       if (remoteVideoRef.current && event.streams[0]) {
         remoteVideoRef.current.srcObject = event.streams[0];
         setCallState(CALL_STATES.CONNECTED);
       }
     };
 
-    // 连接状态变化
+    // Connection state change
     pc.onconnectionstatechange = () => {
-      console.log('[VideoCall] 连接状态:', pc.connectionState);
+      console.log('[VideoCall] connection state:', pc.connectionState);
       if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-        console.error('[VideoCall] 连接失败');
+        console.error('[VideoCall] connection failed');
         handleEnd();
       }
     };
 
-    // 添加本地流
+    // Attach local stream
     const stream = await getLocalStream();
     stream.getTracks().forEach(track => {
       pc.addTrack(track, stream);
@@ -120,27 +120,27 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
     return pc;
   }, [conversationId, socket, getLocalStream]);
 
-  // 主叫：发起呼叫
+  // Caller: start call
   const startCall = useCallback(async () => {
     if (!socket || !conversationId) return;
     
-    console.log('[VideoCall] 主叫：发起呼叫');
+    console.log('[VideoCall] caller: start call');
     setCallState(CALL_STATES.DIALING);
     socket.emit('call:invite', { conversationId });
   }, [socket, conversationId]);
 
-  // 被叫：接听
+  // Callee: accept call
   const acceptCall = useCallback(async () => {
     if (!socket || !conversationId) return;
     
-    console.log('[VideoCall] 被叫：接听电话');
+    console.log('[VideoCall] callee: accept call');
     setCallState(CALL_STATES.CONNECTING);
     socket.emit('call:accept', { conversationId });
   }, [socket, conversationId]);
 
-  // 拒绝/挂断
+  // Reject / hang up
   const handleEnd = useCallback(() => {
-    console.log('[VideoCall] 挂断通话');
+    console.log('[VideoCall] hang up call');
     if (socket && conversationId && callState !== CALL_STATES.IDLE) {
       socket.emit('call:end', { conversationId });
     }
@@ -150,25 +150,25 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
     onClose();
   }, [socket, conversationId, callState, cleanup, onClose]);
 
-  // 处理 WebRTC 信令
+  // Handle WebRTC signaling
   useEffect(() => {
     if (!socket) return;
 
     const handleSignal = async ({ conversationId: roomId, payload }) => {
       if (roomId !== conversationId) return;
       
-      console.log('[VideoCall] 收到信令:', payload.type);
+      console.log('[VideoCall] received signaling:', payload.type);
 
       try {
         if (payload.type === 'offer') {
-          // 被叫方收到 offer
+          // Callee receives offer
           const pc = await createPeerConnection();
           await pc.setRemoteDescription(new RTCSessionDescription({
             type: 'offer',
             sdp: payload.sdp,
           }));
           
-          // 处理待处理的 candidates
+          // Apply pending candidates
           for (const candidate of pendingCandidatesRef.current) {
             await pc.addIceCandidate(candidate);
           }
@@ -181,33 +181,33 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
             conversationId,
             payload: { type: 'answer', sdp: answer.sdp },
           });
-          console.log('[VideoCall] 已发送 answer');
+          console.log('[VideoCall] sent answer');
           
         } else if (payload.type === 'answer') {
-          // 主叫方收到 answer
+          // Caller receives answer
           if (!peerRef.current) {
-            console.error('[VideoCall] PeerConnection 不存在');
+            console.error('[VideoCall] PeerConnection does not exist');
             return;
           }
           await peerRef.current.setRemoteDescription(new RTCSessionDescription({
             type: 'answer',
             sdp: payload.sdp,
           }));
-          console.log('[VideoCall] 已设置 answer');
+          console.log('[VideoCall] answer set');
           
         } else if (payload.type === 'candidate') {
-          // 收到 ICE candidate
+          // Receive ICE candidate
           if (peerRef.current && peerRef.current.remoteDescription) {
             await peerRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate));
-            console.log('[VideoCall] 已添加 candidate');
+            console.log('[VideoCall] added candidate');
           } else {
-            // 暂存，等 setRemoteDescription 后再添加
+            // Store temporarily until remoteDescription is set
             pendingCandidatesRef.current.push(new RTCIceCandidate(payload.candidate));
-            console.log('[VideoCall] 暂存 candidate');
+            console.log('[VideoCall] queued candidate');
           }
         }
       } catch (error) {
-        console.error('[VideoCall] 信令处理失败:', error);
+        console.error('[VideoCall] signaling handling failed:', error);
       }
     };
 
@@ -215,20 +215,20 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
     return () => socket.off('webrtc:signal', handleSignal);
   }, [socket, conversationId, createPeerConnection]);
 
-  // 处理呼叫事件
+  // Handle call events
   useEffect(() => {
     if (!socket) return;
 
     const handleRing = ({ conversationId: roomId }) => {
       if (roomId !== conversationId || mode !== 'incoming') return;
-      console.log('[VideoCall] 收到来电');
+      console.log('[VideoCall] incoming call');
       setVisible(true);
       setCallState(CALL_STATES.RINGING);
     };
 
     const handleAccept = async ({ conversationId: roomId }) => {
       if (roomId !== conversationId || mode !== 'outgoing') return;
-      console.log('[VideoCall] 对方接听，发送 offer');
+      console.log('[VideoCall] other side accepted, sending offer');
       
       setCallState(CALL_STATES.CONNECTING);
       const pc = await createPeerConnection();
@@ -243,13 +243,13 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
 
     const handleDecline = ({ conversationId: roomId }) => {
       if (roomId !== conversationId) return;
-      console.log('[VideoCall] 对方拒绝');
+      console.log('[VideoCall] other side declined');
       handleEnd();
     };
 
     const handleCallEnd = ({ conversationId: roomId }) => {
       if (roomId !== conversationId) return;
-      console.log('[VideoCall] 对方挂断');
+      console.log('[VideoCall] other side hung up');
       handleEnd();
     };
 
@@ -266,7 +266,7 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
     };
   }, [socket, conversationId, mode, createPeerConnection, handleEnd]);
 
-  // 初始化
+  // Init
   useEffect(() => {
     if (mode === 'outgoing') {
       setVisible(true);
@@ -286,7 +286,7 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
   if (!visible) return null;
 
   const showAnimation = callState === CALL_STATES.DIALING || callState === CALL_STATES.RINGING;
-  const callerName = caller?.name || '对方';
+  const callerName = caller?.name || 'Peer';
   const callerInitial = callerName.charAt(0).toUpperCase();
 
   return (
@@ -294,12 +294,12 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
       <div className="video-modal-content">
         <header>
           <div>
-            <strong>视频通话</strong>
+            <strong>Video call</strong>
             <small>
-              {callState === CALL_STATES.RINGING && '来电中...'}
-              {callState === CALL_STATES.DIALING && '呼叫中...'}
-              {callState === CALL_STATES.CONNECTING && '连接中...'}
-              {callState === CALL_STATES.CONNECTED && '通话中'}
+              {callState === CALL_STATES.RINGING && 'Incoming call...'}
+              {callState === CALL_STATES.DIALING && 'Calling...'}
+              {callState === CALL_STATES.CONNECTING && 'Connecting...'}
+              {callState === CALL_STATES.CONNECTED && 'In call'}
             </small>
           </div>
           <button className="btn ghost" onClick={handleEnd}>✕</button>
@@ -310,7 +310,7 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
             <div className="calling-avatar">{callerInitial}</div>
             <div className="calling-text">{callerName}</div>
             <div className="calling-status">
-              {callState === CALL_STATES.DIALING ? '正在呼叫...' : '邀请你视频通话'}
+              {callState === CALL_STATES.DIALING ? 'Calling...' : 'Invites you to a video call'}
             </div>
           </div>
         ) : (
@@ -322,12 +322,12 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
 
         {callState === CALL_STATES.RINGING && mode === 'incoming' ? (
           <div className="video-actions">
-            <button className="btn primary" onClick={acceptCall}>接听</button>
-            <button className="btn secondary" onClick={handleEnd}>拒绝</button>
+            <button className="btn primary" onClick={acceptCall}>Accept</button>
+            <button className="btn secondary" onClick={handleEnd}>Decline</button>
           </div>
         ) : (
           <div className="video-actions">
-            <button className="btn secondary" onClick={handleEnd}>挂断</button>
+            <button className="btn secondary" onClick={handleEnd}>Hang up</button>
           </div>
         )}
       </div>

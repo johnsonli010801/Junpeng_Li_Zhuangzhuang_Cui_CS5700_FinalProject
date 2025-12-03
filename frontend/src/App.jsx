@@ -5,6 +5,7 @@ import ChatPage from './pages/ChatPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import { useAuthStore } from './store/useAuthStore.js';
 import './App.css';
+import { MfaDebugHint } from './components/MfaDebugHint.jsx';
 
 function ProtectedLayout() {
   const location = useLocation();
@@ -25,23 +26,24 @@ function ProtectedLayout() {
         </div>
         <nav className="app-nav">
           <Link to="/app" className={location.pathname === '/app' ? 'active' : ''}>
-            聊天
+            Chat
           </Link>
           <Link
             to="/dashboard"
             className={location.pathname === '/dashboard' ? 'active' : ''}
           >
-            仪表盘
+            Dashboard
           </Link>
         </nav>
         <div className="user-chip">
           <span>{user?.name}</span>
-          <button onClick={logout}>退出</button>
+          <button onClick={logout}>Sign out</button>
         </div>
       </header>
       <main className="app-main">
         <Outlet />
       </main>
+      <MfaDebugHint />
     </div>
   );
 }
@@ -49,8 +51,8 @@ function ProtectedLayout() {
 function App() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/mfa" element={<MfaPage />} />
+      <Route path="/login" element={<><LoginPage /><MfaDebugHint /></>} />
+      <Route path="/mfa" element={<><MfaPage /><MfaDebugHint /></>} />
       <Route element={<ProtectedLayout />}>
         <Route index element={<Navigate to="/app" replace />} />
         <Route path="/app" element={<ChatPage />} />

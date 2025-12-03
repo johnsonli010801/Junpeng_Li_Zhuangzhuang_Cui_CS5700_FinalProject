@@ -8,18 +8,19 @@ function MfaPage() {
   const challengeId = useAuthStore((state) => state.pendingChallenge);
   const setPendingChallenge = useAuthStore((state) => state.setPendingChallenge);
   const setAuth = useAuthStore((state) => state.setAuth);
+  const setMfaDebugCode = useAuthStore((state) => state.setMfaDebugCode);
   const token = useAuthStore((state) => state.token);
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // 只有在没有 token 且没有 challengeId 的情况下才跳转回登录页
-    // 这样可以避免验证成功后被重定向回登录页
+    // Only redirect back to login when there is no token and no challenge id
+    // This avoids redirecting back after successful verification
     if (!challengeId && !token) {
       navigate('/login', { replace: true });
     } else if (token) {
-      // 如果已经有 token（验证成功），直接跳转到应用
+      // If token already exists (verification success), go straight to app
       navigate('/app', { replace: true });
     }
   }, [challengeId, token, navigate]);
@@ -33,13 +34,14 @@ function MfaPage() {
         challengeId,
         token: code,
       });
-      // 先设置认证状态和清空挑战
+      // First set auth state and clear challenge
       setAuth({ token: data.token, user: data.user });
       setPendingChallenge(null);
-      // 使用 replace 而不是 push，避免返回到 MFA 页面
+      setMfaDebugCode(null);
+      // Use replace instead of push to avoid going back to MFA page
       navigate('/app', { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || '验证码错误，请重试');
+      setError(err.response?.data?.message || 'Invalid verification code, please try again');
     } finally {
       setLoading(false);
     }
@@ -48,12 +50,12 @@ function MfaPage() {
   return (
     <div className="mfa-page">
       <div className="auth-card">
-        <h1>🔐 多因素认证</h1>
-        <p>我们已经向您的邮箱发送了 6 位登录验证码（通过 Mailtrap sandbox 模拟发送）。</p>
-        <p>请在 5 分钟内输入该验证码完成登录。</p>
+        <h1>🔐 Multi-factor authentication</h1>
+        <p>A 6-digit login verification code has been sent to your email (via Mailtrap sandbox).</p>
+        <p>Please enter the code within 5 minutes to complete login.</p>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="mfa-code">MFA 验证码</label>
+            <label htmlFor="mfa-code">MFA verification code</label>
             <input
               id="mfa-code"
               type="text"
@@ -75,16 +77,16 @@ function MfaPage() {
             {loading ? (
               <>
                 <span className="loading dark"></span>
-                验证中...
+                Verifying...
               </>
             ) : (
-              '验证并登录'
+              'Verify and sign in'
             )}
           </button>
         </form>
         <div className="auth-footer">
           <button type="button" onClick={() => navigate('/login')}>
-            ← 返回登录
+            ← Back to login
           </button>
         </div>
       </div>

@@ -12,7 +12,9 @@ export const useAuthStore = create((set) => ({
   token: storedToken,
   user: storedUser ? JSON.parse(storedUser) : null,
   pendingChallenge: null,
+  mfaDebugCode: null,
   setPendingChallenge: (challengeId) => set({ pendingChallenge: challengeId }),
+  setMfaDebugCode: (code) => set({ mfaDebugCode: code }),
   setAuth: ({ token, user }) => {
     if (token) {
       localStorage.setItem('youchat_token', token);

@@ -10,17 +10,17 @@ export function LogPanel({ logs }) {
 
   return (
     <div className="panel">
-      <h2 style={{ marginBottom: 'var(--spacing-lg)' }}>📋 活动日志</h2>
+      <h2 style={{ marginBottom: 'var(--spacing-lg)' }}>📋 Activity log</h2>
       <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
         {logs.length === 0 ? (
-          <div className="empty-hint">暂无日志记录</div>
+          <div className="empty-hint">No log entries yet</div>
         ) : (
           <table className="log-table">
             <thead>
               <tr>
-                <th style={{ width: '180px' }}>时间</th>
-                <th style={{ width: '100px' }}>级别</th>
-                <th>描述</th>
+                <th style={{ width: '180px' }}>Time</th>
+                <th style={{ width: '100px' }}>Level</th>
+                <th>Description</th>
               </tr>
             </thead>
             <tbody>

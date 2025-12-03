@@ -36,18 +36,18 @@ function DashboardPage() {
   }, []);
 
   const cards = [
-    { label: '用户总数', value: summary.users, icon: '👥' },
-    { label: '会话数', value: summary.conversations, icon: '💬' },
-    { label: '消息数', value: summary.messages, icon: '📨' },
-    { label: '文件数', value: summary.files, icon: '📎' },
-    { label: '在线用户', value: summary.onlineUsers, icon: '🟢' },
+    { label: 'Total users', value: summary.users, icon: '👥' },
+    { label: 'Conversations', value: summary.conversations, icon: '💬' },
+    { label: 'Messages', value: summary.messages, icon: '📨' },
+    { label: 'Files', value: summary.files, icon: '📎' },
+    { label: 'Online users', value: summary.onlineUsers, icon: '🟢' },
   ];
 
   return (
     <div className="dashboard-container">
       <div className="dashboard-header">
-        <h1>📊 数据仪表盘</h1>
-        <p>实时查看系统运行状态和使用统计</p>
+        <h1>📊 Analytics dashboard</h1>
+        <p>Monitor system status and usage statistics in real time</p>
       </div>
 
       <div className="stats-grid">
@@ -63,7 +63,7 @@ function DashboardPage() {
       </div>
 
       <div className="chart-container">
-        <h2>📈 消息趋势分析</h2>
+        <h2>📈 Message trend analysis</h2>
         <div style={{ height: 300 }}>
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={activity}>
