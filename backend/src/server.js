@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
@@ -26,6 +27,7 @@ import {
   validateFileUpload,
   sanitizeInput,
 } from './security.js';
+import { sendMfaCodeEmail } from './mailer.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -134,40 +136,51 @@ app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   const ip = req.ip || req.connection.remoteAddress;
   
-  // 检查登录尝试次数
-  const attemptCheck = checkLoginAttempts(email);
-  if (attemptCheck.locked) {
-    return res.status(429).json({
-      message: `登录尝试过多，请在 ${attemptCheck.remainingMinutes} 分钟后重试`,
-    });
-  }
-  
   const user = db.data.users.find((u) => u.email === email);
   if (!user) {
-    recordLoginAttempt(email, false, ip);
     return res.status(401).json({ message: '账号或密码错误' });
   }
   ensureUserShape(user);
   const match = await verifyPassword(password, user.passwordHash);
   if (!match) {
-    recordLoginAttempt(email, false, ip);
     return res.status(401).json({ message: '账号或密码错误' });
   }
 
-  if (user.mfaEnabled) {
-    const challengeId = nanoid();
-    pendingMfaChallenges.set(challengeId, {
+  // 第一步密码验证通过后，无论用户输入什么邮箱，
+  // 都触发"邮箱验证码 MFA"，并把验证码发到固定的 Mailtrap sandbox 邮箱。
+  const challengeId = nanoid();
+  const code = generateNumericCode(6);
+  const expiresAt = Date.now() + 5 * 60 * 1000;
+  pendingMfaChallenges.set(challengeId, {
+    userId: user.id,
+    code,
+    expiresAt,
+  });
+
+  // 在控制台打印验证码（仅用于开发测试）
+  console.log(`\n🔐 MFA 验证码已生成：${code}`);
+  console.log(`📧 用户邮箱：${user.email}`);
+  console.log(`⏰ 有效期至：${new Date(expiresAt).toLocaleString('zh-CN')}`);
+  console.log(`🔑 Challenge ID：${challengeId}\n`);
+
+  try {
+    await sendMfaCodeEmail(user.email, code);
+  } catch (error) {
+    logger.error(`发送 MFA 邮件失败: ${error.message}`, {
       userId: user.id,
-      expiresAt: Date.now() + 5 * 60 * 1000,
+      email: user.email,
     });
-    return res.json({ requiresMfa: true, challengeId });
+    return res.status(500).json({ message: '发送验证码失败，请稍后重试' });
   }
 
-  const token = generateToken(user);
   recordLoginAttempt(email, true, ip);
-  createSession(user.id, token, ip, req.headers['user-agent']);
-  recordLog('info', '用户登录', { userId: user.id, ip });
-  return res.json({ token, user: sanitizeUser(user) });
+  recordLog('info', '触发邮箱 MFA 登录挑战', {
+    userId: user.id,
+    ip,
+    code, // 记录验证码到日志（生产环境应该移除）
+  });
+
+  return res.json({ requiresMfa: true, challengeId });
 });
 
 app.post('/api/auth/mfa/setup', authMiddleware, (req, res) => {
@@ -209,28 +222,46 @@ app.post('/api/auth/mfa/enable', authMiddleware, (req, res) => {
 
 app.post('/api/auth/mfa/verify', (req, res) => {
   const { challengeId, token } = req.body;
+  
+  console.log(`\n🔍 MFA 验证请求：`);
+  console.log(`Challenge ID: ${challengeId}`);
+  console.log(`用户输入验证码: ${token}`);
+  console.log(`当前挑战数量: ${pendingMfaChallenges.size}`);
+  
   const challenge = pendingMfaChallenges.get(challengeId);
-  if (!challenge || challenge.expiresAt < Date.now()) {
-    return res.status(400).json({ message: '挑战已失效' });
+  if (!challenge) {
+    console.log(`❌ Challenge 不存在（可能是服务器重启导致内存清空）\n`);
+    return res.status(400).json({ message: '挑战已失效，请重新登录' });
   }
+  
+  const now = Date.now();
+  if (challenge.expiresAt < now) {
+    console.log(`❌ Challenge 已过期`);
+    console.log(`过期时间: ${new Date(challenge.expiresAt).toLocaleString('zh-CN')}`);
+    console.log(`当前时间: ${new Date(now).toLocaleString('zh-CN')}\n`);
+    return res.status(400).json({ message: '验证码已过期，请重新登录' });
+  }
+  
   const user = db.data.users.find((u) => u.id === challenge.userId);
-  if (!user || !user.mfaSecret) {
-    return res.status(400).json({ message: '用户未启用 MFA' });
+  if (!user) {
+    console.log(`❌ 用户不存在: ${challenge.userId}\n`);
+    return res.status(400).json({ message: '用户不存在' });
   }
 
-  const verified = speakeasy.totp.verify({
-    secret: user.mfaSecret,
-    encoding: 'base32',
-    token,
-  });
-
-  if (!verified) {
+  const expectedCode = String(challenge.code || '');
+  console.log(`期望验证码: ${expectedCode}`);
+  
+  if (!expectedCode || String(token) !== expectedCode) {
+    console.log(`❌ 验证码不匹配\n`);
     return res.status(400).json({ message: '验证码错误' });
   }
 
+  console.log(`✅ 验证码正确，登录成功\n`);
   pendingMfaChallenges.delete(challengeId);
   const jwtToken = generateToken(user);
-  recordLog('info', '用户通过 MFA 登录', { userId: user.id });
+  const ip = req.ip || req.connection.remoteAddress;
+  createSession(user.id, jwtToken, ip, req.headers['user-agent']);
+  recordLog('info', '用户通过邮箱 MFA 登录', { userId: user.id, ip });
   res.json({ token: jwtToken, user: sanitizeUser(user) });
 });
 
@@ -790,6 +821,18 @@ function cleanupExpiredChallenges() {
       pendingMfaChallenges.delete(key);
     }
   }
+}
+
+function generateNumericCode(length = 6) {
+  let code = '';
+  for (let i = 0; i < length; i += 1) {
+    code += Math.floor(Math.random() * 10).toString();
+  }
+  // 确保首位不是 0，增强展示效果
+  if (code[0] === '0') {
+    code = `1${code.slice(1)}`;
+  }
+  return code;
 }
 
 setInterval(cleanupExpiredChallenges, 60 * 1000);

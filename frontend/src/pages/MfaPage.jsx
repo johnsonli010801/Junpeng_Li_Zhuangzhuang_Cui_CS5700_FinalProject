@@ -8,15 +8,21 @@ function MfaPage() {
   const challengeId = useAuthStore((state) => state.pendingChallenge);
   const setPendingChallenge = useAuthStore((state) => state.setPendingChallenge);
   const setAuth = useAuthStore((state) => state.setAuth);
+  const token = useAuthStore((state) => state.token);
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!challengeId) {
-      navigate('/login');
+    // 只有在没有 token 且没有 challengeId 的情况下才跳转回登录页
+    // 这样可以避免验证成功后被重定向回登录页
+    if (!challengeId && !token) {
+      navigate('/login', { replace: true });
+    } else if (token) {
+      // 如果已经有 token（验证成功），直接跳转到应用
+      navigate('/app', { replace: true });
     }
-  }, [challengeId, navigate]);
+  }, [challengeId, token, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -27,9 +33,11 @@ function MfaPage() {
         challengeId,
         token: code,
       });
+      // 先设置认证状态和清空挑战
       setAuth({ token: data.token, user: data.user });
       setPendingChallenge(null);
-      navigate('/app');
+      // 使用 replace 而不是 push，避免返回到 MFA 页面
+      navigate('/app', { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || '验证码错误，请重试');
     } finally {
@@ -41,7 +49,8 @@ function MfaPage() {
     <div className="mfa-page">
       <div className="auth-card">
         <h1>🔐 多因素认证</h1>
-        <p>请输入身份验证器应用中的 6 位动态验证码</p>
+        <p>我们已经向您的邮箱发送了 6 位登录验证码（通过 Mailtrap sandbox 模拟发送）。</p>
+        <p>请在 5 分钟内输入该验证码完成登录。</p>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="mfa-code">MFA 验证码</label>
