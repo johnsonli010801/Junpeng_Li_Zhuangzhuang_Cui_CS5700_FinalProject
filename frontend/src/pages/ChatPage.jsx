@@ -3,7 +3,6 @@ import { ConversationList } from '../components/ConversationList.jsx';
 import { MessageBoard } from '../components/MessageBoard.jsx';
 import { VideoCall } from '../components/VideoCall.jsx';
 import { LogPanel } from '../components/LogPanel.jsx';
-import { SecurityPanel } from '../components/SecurityPanel.jsx';
 import { ContactsPanel } from '../components/ContactsPanel.jsx';
 import { api, API_BASE } from '../api/client.js';
 import { useAuthStore } from '../store/useAuthStore.js';
@@ -17,7 +16,6 @@ function ChatPage() {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [rawMessages, setRawMessages] = useState([]);
   const [logs, setLogs] = useState([]);
-  const [setupInfo, setSetupInfo] = useState(null);
   const [users, setUsers] = useState([]);
   const [friends, setFriends] = useState([]);
   const [friendRequests, setFriendRequests] = useState({
@@ -248,20 +246,6 @@ function ChatPage() {
     }
   };
 
-  const handleSetupMfa = async () => {
-    const { data } = await api.post('/auth/mfa/setup');
-    setSetupInfo(data);
-  };
-
-  const handleEnableMfa = async () => {
-    const tokenInput = window.prompt('请输入 6 位验证码');
-    if (!tokenInput) return;
-    await api.post('/auth/mfa/enable', { token: tokenInput });
-    const { data } = await api.get('/me');
-    setAuth({ token, user: data.user });
-    setSetupInfo(null);
-  };
-
   const handleAddFriend = async () => {
     const value = window.prompt('输入好友邮箱或用户ID');
     if (!value) return;
@@ -462,12 +446,6 @@ function ChatPage() {
         )}
         {activeNav === 'settings' && (
           <div className="settings-pane">
-            <SecurityPanel
-              user={user}
-              setupInfo={setupInfo}
-              onSetup={handleSetupMfa}
-              onEnable={handleEnableMfa}
-            />
             <LogPanel logs={logs} />
           </div>
         )}

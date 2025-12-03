@@ -2,7 +2,6 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
-import speakeasy from 'speakeasy';
 import { nanoid } from 'nanoid';
 import { createServer } from 'node:http';
 import { Server as SocketIOServer } from 'socket.io';
@@ -21,9 +20,6 @@ import {
 } from './auth.js';
 import { logger } from './logger.js';
 import {
-  checkLoginAttempts,
-  recordLoginAttempt,
-  createSession,
   validateFileUpload,
   sanitizeInput,
 } from './security.js';
@@ -62,7 +58,6 @@ const onlineUsers = new Map();
 
 initDb();
 hydrateLegacyData();
-seedDefaultConversation();
 
 app.use(cors({
   origin: ALLOWED_ORIGINS,
@@ -104,8 +99,6 @@ app.post('/api/auth/register', async (req, res) => {
       name: sanitizeInput(name), // 清理用户名
       email: normalizedEmail, // 规范化邮箱
       passwordHash,
-      mfaEnabled: false,
-      mfaSecret: null,
       friends: [],
       roles: ['user'],
       createdAt: now,
@@ -119,10 +112,6 @@ app.post('/api/auth/register', async (req, res) => {
     }
     
     db.data.users.push(user);
-    const general = db.data.conversations.find((c) => c.id === 'general');
-    if (general && !general.members.includes(user.id)) {
-      general.members.push(user.id);
-    }
     persist();
     recordLog('info', '用户注册成功', { userId: user.id });
     res.status(201).json({ user: sanitizeUser(user) });
@@ -136,7 +125,10 @@ app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   const ip = req.ip || req.connection.remoteAddress;
   
-  const user = db.data.users.find((u) => u.email === email);
+  // 标准化邮箱（与注册时保持一致）
+  const normalizedEmail = email.toLowerCase().trim();
+  
+  const user = db.data.users.find((u) => u.email === normalizedEmail);
   if (!user) {
     return res.status(401).json({ message: '账号或密码错误' });
   }
@@ -158,10 +150,10 @@ app.post('/api/auth/login', async (req, res) => {
   });
 
   // 在控制台打印验证码（仅用于开发测试）
-  console.log(`\n🔐 MFA 验证码已生成：${code}`);
-  console.log(`📧 用户邮箱：${user.email}`);
-  console.log(`⏰ 有效期至：${new Date(expiresAt).toLocaleString('zh-CN')}`);
-  console.log(`🔑 Challenge ID：${challengeId}\n`);
+  console.log(`\nMFA 验证码已生成：${code}`);
+  console.log(`用户邮箱：${user.email}`);
+  console.log(`有效期至：${new Date(expiresAt).toLocaleString('zh-CN')}`);
+  console.log(`Challenge ID：${challengeId}\n`);
 
   try {
     await sendMfaCodeEmail(user.email, code);
@@ -173,7 +165,6 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(500).json({ message: '发送验证码失败，请稍后重试' });
   }
 
-  recordLoginAttempt(email, true, ip);
   recordLog('info', '触发邮箱 MFA 登录挑战', {
     userId: user.id,
     ip,
@@ -183,60 +174,23 @@ app.post('/api/auth/login', async (req, res) => {
   return res.json({ requiresMfa: true, challengeId });
 });
 
-app.post('/api/auth/mfa/setup', authMiddleware, (req, res) => {
-  const secret = speakeasy.generateSecret({
-    name: `YouChat (${req.user.email})`,
-    length: 20,
-  });
-  req.user.mfaTempSecret = secret.base32;
-  persist();
-  res.json({
-    secret: secret.base32,
-    otpauth_url: secret.otpauth_url,
-  });
-});
-
-app.post('/api/auth/mfa/enable', authMiddleware, (req, res) => {
-  const { token } = req.body;
-  if (!req.user.mfaTempSecret) {
-    return res.status(400).json({ message: '未发起 MFA 绑定' });
-  }
-
-  const verified = speakeasy.totp.verify({
-    secret: req.user.mfaTempSecret,
-    encoding: 'base32',
-    token,
-  });
-  if (!verified) {
-    return res.status(400).json({ message: '验证码错误' });
-  }
-
-  req.user.mfaSecret = req.user.mfaTempSecret;
-  req.user.mfaTempSecret = null;
-  req.user.mfaEnabled = true;
-  req.user.updatedAt = new Date().toISOString();
-  persist();
-  recordLog('info', '用户启用 MFA', { userId: req.user.id });
-  res.json({ message: 'MFA 已启用' });
-});
-
 app.post('/api/auth/mfa/verify', (req, res) => {
   const { challengeId, token } = req.body;
   
-  console.log(`\n🔍 MFA 验证请求：`);
+  console.log(`\nMFA 验证请求：`);
   console.log(`Challenge ID: ${challengeId}`);
   console.log(`用户输入验证码: ${token}`);
   console.log(`当前挑战数量: ${pendingMfaChallenges.size}`);
   
   const challenge = pendingMfaChallenges.get(challengeId);
   if (!challenge) {
-    console.log(`❌ Challenge 不存在（可能是服务器重启导致内存清空）\n`);
+    console.log(`Challenge 不存在（可能是服务器重启导致内存清空）\n`);
     return res.status(400).json({ message: '挑战已失效，请重新登录' });
   }
   
   const now = Date.now();
   if (challenge.expiresAt < now) {
-    console.log(`❌ Challenge 已过期`);
+    console.log(`Challenge 已过期`);
     console.log(`过期时间: ${new Date(challenge.expiresAt).toLocaleString('zh-CN')}`);
     console.log(`当前时间: ${new Date(now).toLocaleString('zh-CN')}\n`);
     return res.status(400).json({ message: '验证码已过期，请重新登录' });
@@ -244,7 +198,7 @@ app.post('/api/auth/mfa/verify', (req, res) => {
   
   const user = db.data.users.find((u) => u.id === challenge.userId);
   if (!user) {
-    console.log(`❌ 用户不存在: ${challenge.userId}\n`);
+    console.log(`用户不存在: ${challenge.userId}\n`);
     return res.status(400).json({ message: '用户不存在' });
   }
 
@@ -252,15 +206,14 @@ app.post('/api/auth/mfa/verify', (req, res) => {
   console.log(`期望验证码: ${expectedCode}`);
   
   if (!expectedCode || String(token) !== expectedCode) {
-    console.log(`❌ 验证码不匹配\n`);
+    console.log(`验证码不匹配\n`);
     return res.status(400).json({ message: '验证码错误' });
   }
 
-  console.log(`✅ 验证码正确，登录成功\n`);
+  console.log(`验证码正确，登录成功\n`);
   pendingMfaChallenges.delete(challengeId);
   const jwtToken = generateToken(user);
   const ip = req.ip || req.connection.remoteAddress;
-  createSession(user.id, jwtToken, ip, req.headers['user-agent']);
   recordLog('info', '用户通过邮箱 MFA 登录', { userId: user.id, ip });
   res.json({ token: jwtToken, user: sanitizeUser(user) });
 });
@@ -582,39 +535,6 @@ app.delete('/api/conversations/:id', authMiddleware, (req, res) => {
   res.json({ message: '群聊已删除' });
 });
 
-app.post('/api/conversations/:id/announcement', authMiddleware, (req, res) => {
-  const conversation = findConversation(req.params.id);
-  if (!conversation) {
-    return res.status(404).json({ message: '会话不存在' });
-  }
-  if (!conversation.isGroup) {
-    return res.status(400).json({ message: '只有群聊支持公告' });
-  }
-  if (conversation.createdBy !== req.user.id && !req.user.roles?.includes('admin')) {
-    return res.status(403).json({ message: '只有创建者或管理员可以发布公告' });
-  }
-  const { content } = req.body;
-  if (!content) {
-    return res.status(400).json({ message: '公告内容不能为空' });
-  }
-  
-  conversation.announcement = {
-    content: sanitizeInput(content),
-    createdBy: req.user.id,
-    createdAt: new Date().toISOString(),
-  };
-  persist();
-  
-  // 通知群成员
-  io.to(conversation.id).emit('announcement:updated', {
-    conversationId: conversation.id,
-    announcement: conversation.announcement,
-  });
-  
-  recordLog('info', '发布群公告', { conversationId: conversation.id, userId: req.user.id });
-  res.json({ conversation });
-});
-
 app.post(
   '/api/files/upload',
   authMiddleware,
@@ -752,8 +672,6 @@ function createMessage({ conversationId, senderId, type = 'text', content, fileI
 function sanitizeUser(user) {
   const {
     passwordHash,
-    mfaSecret,
-    mfaTempSecret,
     ...rest
   } = user;
   return rest;
@@ -774,20 +692,6 @@ function decorateFriendRequest(request) {
     from: from ? sanitizeUser(from) : null,
     to: to ? sanitizeUser(to) : null,
   };
-}
-
-function seedDefaultConversation() {
-  if (db.data.conversations.length === 0) {
-    db.data.conversations.push({
-      id: 'general',
-      name: '班级公共频道',
-      isGroup: true,
-      members: [],
-      createdBy: 'system',
-      createdAt: new Date().toISOString(),
-    });
-    persist();
-  }
 }
 
 function ensureDirectConversation(userIdA, userIdB) {
@@ -905,34 +809,6 @@ io.on('connection', (socket) => {
       sender: sanitizeUser(user),
     });
     recordLog('info', '发送消息', { userId: user.id, conversationId });
-  });
-
-  // 输入状态
-  socket.on('typing:start', ({ conversationId }) => {
-    socket.to(conversationId).emit('typing:user', {
-      conversationId,
-      userId: user.id,
-      userName: user.name,
-      isTyping: true,
-    });
-  });
-
-  socket.on('typing:stop', ({ conversationId }) => {
-    socket.to(conversationId).emit('typing:user', {
-      conversationId,
-      userId: user.id,
-      isTyping: false,
-    });
-  });
-
-  // 已读回执
-  socket.on('message:read', ({ conversationId, messageId }) => {
-    socket.to(conversationId).emit('message:read', {
-      conversationId,
-      messageId,
-      readBy: user.id,
-      readAt: new Date().toISOString(),
-    });
   });
 
   socket.on('webrtc:signal', ({ conversationId, payload }) => {

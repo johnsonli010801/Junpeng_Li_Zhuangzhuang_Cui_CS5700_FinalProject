@@ -11,7 +11,7 @@ export function LogPanel({ logs }) {
   return (
     <div className="panel">
       <h2 style={{ marginBottom: 'var(--spacing-lg)' }}>📋 活动日志</h2>
-      <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+      <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
         {logs.length === 0 ? (
           <div className="empty-hint">暂无日志记录</div>
         ) : (
