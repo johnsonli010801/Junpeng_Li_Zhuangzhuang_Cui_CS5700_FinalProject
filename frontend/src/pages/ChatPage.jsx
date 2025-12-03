@@ -446,13 +446,17 @@ function ChatPage() {
         )}
         {activeNav === 'settings' && (
           <div className="settings-pane">
-            <LogPanel logs={logs} />
+            <div className="empty-hint">在右侧查看活动日志和系统设置</div>
           </div>
         )}
       </section>
 
       <section className="wechat-chat-pane">
-        {selectedConversation ? (
+        {activeNav === 'settings' ? (
+          <div className="settings-pane">
+            <LogPanel logs={logs} />
+          </div>
+        ) : selectedConversation ? (
           <>
             <div className="chat-header">
               <div>

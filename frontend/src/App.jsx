@@ -20,8 +20,8 @@ function ProtectedLayout() {
     <div className="app-shell">
       <header className="app-header">
         <div>
-          <h1>YouChat 实时协作</h1>
-          <p className="subtitle">安全 · 实时 · 协作</p>
+          <h1>YouChat Realtime Collaboration</h1>
+          <p className="subtitle">Secure · Realtime · Collaborative</p>
         </div>
         <nav className="app-nav">
           <Link to="/app" className={location.pathname === '/app' ? 'active' : ''}>
