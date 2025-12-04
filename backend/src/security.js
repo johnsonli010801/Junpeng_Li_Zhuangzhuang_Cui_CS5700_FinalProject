@@ -1,6 +1,6 @@
 export function validateFileUpload(file) {
   const allowedTypes = [
-    // 图片
+    // Images
     'image/jpeg',
     'image/png',
     'image/gif',
@@ -8,7 +8,7 @@ export function validateFileUpload(file) {
     'image/bmp',
     'image/svg+xml',
     
-    // 文档
+    // Documents
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -19,13 +19,13 @@ export function validateFileUpload(file) {
     'text/plain',
     'text/csv',
     
-    // 压缩文件
+    // Archives
     'application/zip',
     'application/x-zip-compressed',
     'application/x-rar-compressed',
     'application/x-7z-compressed',
     
-    // 音频
+    // Audio
     'audio/mpeg',        // mp3
     'audio/mp3',         // mp3 alternative
     'audio/wav',         // wav
@@ -36,7 +36,7 @@ export function validateFileUpload(file) {
     'audio/mp4',         // m4a
     'audio/x-m4a',       // m4a alternative
     
-    // 视频
+    // Video
     'video/mp4',         // mp4
     'video/mpeg',        // mpeg
     'video/quicktime',   // mov
@@ -49,7 +49,7 @@ export function validateFileUpload(file) {
   if (!allowedTypes.includes(file.mimetype)) {
     return {
       valid: false,
-      error: `不支持的文件类型: ${file.mimetype}。支持图片、文档、音频、视频、压缩包。`,
+      error: `Unsupported file type: ${file.mimetype}. Allowed types: images, documents, audio, video and archives.`,
     };
   }
   
@@ -57,7 +57,7 @@ export function validateFileUpload(file) {
     const sizeMB = (file.size / 1024 / 1024).toFixed(2);
     return {
       valid: false,
-      error: `文件大小${sizeMB}MB超过25MB限制`,
+      error: `File size ${sizeMB}MB exceeds 25MB limit`,
     };
   }
   
@@ -68,15 +68,15 @@ export function sanitizeInput(input) {
   if (typeof input !== 'string') return input;
   
   return input
-    // 移除所有HTML标签
+    // Strip all HTML tags
     .replace(/<[^>]*>/g, '')
-    // 移除javascript:协议
+    // Strip javascript: protocol
     .replace(/javascript:/gi, '')
-    // 移除on事件处理器
+    // Strip inline event handlers
     .replace(/on\w+\s*=/gi, '')
-    // 移除危险字符
+    // Strip dangerous characters
     .replace(/[<>'"]/g, '')
-    // 移除控制字符（保留换行和制表符）
+    // Strip control chars (keep newline and tab)
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
     .trim()
     .slice(0, 5000);

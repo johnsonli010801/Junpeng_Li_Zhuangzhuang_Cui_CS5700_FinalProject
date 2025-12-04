@@ -74,30 +74,30 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
     if (!email || !password || !name) {
-      return res.status(400).json({ message: '缺少必要字段' });
+      return res.status(400).json({ message: 'Missing required fields' });
     }
     
-    // 邮箱格式验证
+    // Email format validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return res.status(400).json({ message: '邮箱格式不正确' });
+      return res.status(400).json({ message: 'Invalid email format' });
     }
     
-    // 标准化邮箱
+    // Normalize email
     const normalizedEmail = email.toLowerCase().trim();
     
-    // 检查邮箱是否已存在
+    // Check if email already exists
     const existingUser = db.data.users.find((u) => u.email === normalizedEmail);
     if (existingUser) {
-      return res.status(409).json({ message: '邮箱已注册' });
+      return res.status(409).json({ message: 'Email is already registered' });
     }
     
     const passwordHash = await hashPassword(password);
     const now = new Date().toISOString();
     const user = {
       id: nanoid(),
-      name: sanitizeInput(name), // 清理用户名
-      email: normalizedEmail, // 规范化邮箱
+      name: sanitizeInput(name), // Sanitize user name
+      email: normalizedEmail, // Normalized email
       passwordHash,
       friends: [],
       roles: ['user'],
@@ -105,19 +105,19 @@ app.post('/api/auth/register', async (req, res) => {
       updatedAt: now,
     };
     
-    // 二次检查（防止并发竞态条件）
+    // Double-check to avoid race conditions
     const doubleCheck = db.data.users.find((u) => u.email === normalizedEmail);
     if (doubleCheck) {
-      return res.status(409).json({ message: '邮箱已注册' });
+      return res.status(409).json({ message: 'Email is already registered' });
     }
     
     db.data.users.push(user);
     persist();
-    recordLog('info', '用户注册成功', { userId: user.id });
+    recordLog('info', 'User registered successfully', { userId: user.id });
     res.status(201).json({ user: sanitizeUser(user) });
   } catch (error) {
-    logger.error(`注册失败: ${error.message}`);
-    res.status(500).json({ message: '服务器错误' });
+    logger.error(`Registration failed: ${error.message}`);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -125,21 +125,21 @@ app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   const ip = req.ip || req.connection.remoteAddress;
   
-  // 标准化邮箱（与注册时保持一致）
+  // Normalize email (same as during registration)
   const normalizedEmail = email.toLowerCase().trim();
   
   const user = db.data.users.find((u) => u.email === normalizedEmail);
   if (!user) {
-    return res.status(401).json({ message: '账号或密码错误' });
+    return res.status(401).json({ message: 'Invalid email or password' });
   }
   ensureUserShape(user);
   const match = await verifyPassword(password, user.passwordHash);
   if (!match) {
-    return res.status(401).json({ message: '账号或密码错误' });
+    return res.status(401).json({ message: 'Invalid email or password' });
   }
-
-  // 第一步密码验证通过后，无论用户输入什么邮箱，
-  // 都触发"邮箱验证码 MFA"，并把验证码发到固定的 Mailtrap sandbox 邮箱。
+  
+  // After the initial password check passes, always trigger email-code MFA
+  // and send the code to a fixed Mailtrap sandbox inbox.
   const challengeId = nanoid();
   const code = generateNumericCode(6);
   const expiresAt = Date.now() + 5 * 60 * 1000;
@@ -149,72 +149,72 @@ app.post('/api/auth/login', async (req, res) => {
     expiresAt,
   });
 
-  // 在控制台打印验证码（仅用于开发测试）
-  console.log(`\nMFA 验证码已生成：${code}`);
-  console.log(`用户邮箱：${user.email}`);
-  console.log(`有效期至：${new Date(expiresAt).toLocaleString('zh-CN')}`);
-  console.log(`Challenge ID：${challengeId}\n`);
+  // Log MFA code in console (development/testing only)
+  console.log(`\nMFA code generated: ${code}`);
+  console.log(`User email: ${user.email}`);
+  console.log(`Expires at: ${new Date(expiresAt).toLocaleString('zh-CN')}`);
+  console.log(`Challenge ID: ${challengeId}\n`);
 
   try {
     await sendMfaCodeEmail(user.email, code);
   } catch (error) {
-    logger.error(`发送 MFA 邮件失败: ${error.message}`, {
+    logger.error(`Failed to send MFA email: ${error.message}`, {
       userId: user.id,
       email: user.email,
     });
-    return res.status(500).json({ message: '发送验证码失败，请稍后重试' });
+    return res.status(500).json({ message: 'Failed to send verification code, please try again later' });
   }
 
-  recordLog('info', '触发邮箱 MFA 登录挑战', {
+  recordLog('info', 'Triggered email MFA login challenge', {
     userId: user.id,
     ip,
-    code, // 记录验证码到日志（生产环境应该移除）
+    code, // Log code for demo purposes (remove in production)
   });
-
-  return res.json({ requiresMfa: true, challengeId });
+  
+  return res.json({ requiresMfa: true, challengeId, mfaCode: code });
 });
 
 app.post('/api/auth/mfa/verify', (req, res) => {
   const { challengeId, token } = req.body;
   
-  console.log(`\nMFA 验证请求：`);
+  console.log(`\nMFA verification request:`);
   console.log(`Challenge ID: ${challengeId}`);
-  console.log(`用户输入验证码: ${token}`);
-  console.log(`当前挑战数量: ${pendingMfaChallenges.size}`);
+  console.log(`User input code: ${token}`);
+  console.log(`Current number of challenges: ${pendingMfaChallenges.size}`);
   
   const challenge = pendingMfaChallenges.get(challengeId);
   if (!challenge) {
-    console.log(`Challenge 不存在（可能是服务器重启导致内存清空）\n`);
-    return res.status(400).json({ message: '挑战已失效，请重新登录' });
+    console.log(`Challenge not found (possibly cleared after server restart)\n`);
+    return res.status(400).json({ message: 'Challenge is no longer valid, please log in again' });
   }
   
   const now = Date.now();
   if (challenge.expiresAt < now) {
-    console.log(`Challenge 已过期`);
-    console.log(`过期时间: ${new Date(challenge.expiresAt).toLocaleString('zh-CN')}`);
-    console.log(`当前时间: ${new Date(now).toLocaleString('zh-CN')}\n`);
-    return res.status(400).json({ message: '验证码已过期，请重新登录' });
+    console.log(`Challenge expired`);
+    console.log(`Expires at: ${new Date(challenge.expiresAt).toLocaleString('zh-CN')}`);
+    console.log(`Current time: ${new Date(now).toLocaleString('zh-CN')}\n`);
+    return res.status(400).json({ message: 'Verification code has expired, please log in again' });
   }
   
   const user = db.data.users.find((u) => u.id === challenge.userId);
   if (!user) {
-    console.log(`用户不存在: ${challenge.userId}\n`);
-    return res.status(400).json({ message: '用户不存在' });
+    console.log(`User not found: ${challenge.userId}\n`);
+    return res.status(400).json({ message: 'User does not exist' });
   }
 
   const expectedCode = String(challenge.code || '');
-  console.log(`期望验证码: ${expectedCode}`);
+  console.log(`Expected code: ${expectedCode}`);
   
   if (!expectedCode || String(token) !== expectedCode) {
-    console.log(`验证码不匹配\n`);
-    return res.status(400).json({ message: '验证码错误' });
+    console.log(`Verification code does not match\n`);
+    return res.status(400).json({ message: 'Invalid verification code' });
   }
-
-  console.log(`验证码正确，登录成功\n`);
+  
+  console.log(`Verification code correct, login success\n`);
   pendingMfaChallenges.delete(challengeId);
   const jwtToken = generateToken(user);
   const ip = req.ip || req.connection.remoteAddress;
-  recordLog('info', '用户通过邮箱 MFA 登录', { userId: user.id, ip });
+  recordLog('info', 'User logged in via email MFA', { userId: user.id, ip });
   res.json({ token: jwtToken, user: sanitizeUser(user) });
 });
 
@@ -261,15 +261,15 @@ app.post('/api/friends/request', authMiddleware, (req, res) => {
     db.data.users.find((u) => u.email === targetEmail) ||
     db.data.users.find((u) => u.id === targetUserId);
   if (!target) {
-    return res.status(404).json({ message: '用户不存在' });
+    return res.status(404).json({ message: 'User not found' });
   }
   if (target.id === req.user.id) {
-    return res.status(400).json({ message: '不能添加自己为好友' });
+    return res.status(400).json({ message: 'You cannot add yourself as a friend' });
   }
   ensureUserShape(req.user);
   ensureUserShape(target);
   if (req.user.friends.includes(target.id)) {
-    return res.status(409).json({ message: '已是好友' });
+    return res.status(409).json({ message: 'Already friends' });
   }
   const existing = db.data.friendRequests.find(
     (item) =>
@@ -278,7 +278,7 @@ app.post('/api/friends/request', authMiddleware, (req, res) => {
         (item.fromId === target.id && item.toId === req.user.id))
   );
   if (existing) {
-    return res.status(409).json({ message: '已存在待处理的好友请求' });
+    return res.status(409).json({ message: 'There is already a pending friend request' });
   }
   const request = {
     id: nanoid(),
@@ -289,7 +289,7 @@ app.post('/api/friends/request', authMiddleware, (req, res) => {
   };
   db.data.friendRequests.push(request);
   persist();
-  recordLog('info', '发起好友请求', { from: req.user.id, to: target.id });
+  recordLog('info', 'Friend request created', { from: req.user.id, to: target.id });
   io.to(target.id).emit('friends:update');
   io.to(req.user.id).emit('friends:update');
   res.status(201).json({ request: decorateFriendRequest(request) });
@@ -299,13 +299,13 @@ app.post('/api/friends/respond', authMiddleware, (req, res) => {
   const { requestId, action } = req.body;
   const request = db.data.friendRequests.find((item) => item.id === requestId);
   if (!request || request.toId !== req.user.id) {
-    return res.status(404).json({ message: '好友请求不存在' });
+    return res.status(404).json({ message: 'Friend request not found' });
   }
   if (request.status !== 'pending') {
-    return res.status(400).json({ message: '请求已被处理' });
+    return res.status(400).json({ message: 'Request has already been handled' });
   }
   if (!['accept', 'decline'].includes(action)) {
-    return res.status(400).json({ message: '无效操作' });
+    return res.status(400).json({ message: 'Invalid action' });
   }
   request.status = action === 'accept' ? 'accepted' : 'declined';
   request.handledAt = new Date().toISOString();
@@ -322,9 +322,9 @@ app.post('/api/friends/respond', authMiddleware, (req, res) => {
       toUser.friends.push(fromUser.id);
     }
     ensureDirectConversation(fromUser.id, toUser.id);
-    recordLog('info', '好友请求已接受', { requestId, from: fromUser.id, to: toUser.id });
+    recordLog('info', 'Friend request accepted', { requestId, from: fromUser.id, to: toUser.id });
   } else {
-    recordLog('info', '好友请求被拒绝', { requestId });
+    recordLog('info', 'Friend request declined', { requestId });
   }
   persist();
   io.to(request.fromId).emit('friends:update');
@@ -342,31 +342,31 @@ app.get('/api/conversations', authMiddleware, (req, res) => {
 app.post('/api/conversations', authMiddleware, (req, res) => {
   const { name, memberIds = [], isGroup = true } = req.body;
   if (!name) {
-    return res.status(400).json({ message: '缺少会话名称' });
+    return res.status(400).json({ message: 'Conversation name is required' });
   }
   
-  // 清理会话名称
+  // Sanitize conversation name
   const cleanName = sanitizeInput(name);
   if (!cleanName) {
-    return res.status(400).json({ message: '会话名称不能为空' });
+    return res.status(400).json({ message: 'Conversation name cannot be empty' });
   }
   
   const participants = Array.from(new Set([req.user.id, ...memberIds]));
   
-  // 私聊验证
+  // Direct conversation validation
   if (!isGroup) {
     if (memberIds.length === 0) {
       return res.status(400).json({ 
-        message: '私聊需要指定对方用户ID' 
+        message: 'Direct chat requires a target user id' 
       });
     }
     if (participants.length !== 2) {
       return res.status(400).json({ 
-        message: '私聊会话需要且仅能有两位成员' 
+        message: 'Direct chat must have exactly two members' 
       });
     }
     
-    // 检查是否已存在相同的私聊
+    // Check whether a direct conversation between the two users already exists
     const existing = db.data.conversations.find(
       (conv) =>
         !conv.isGroup &&
@@ -388,14 +388,14 @@ app.post('/api/conversations', authMiddleware, (req, res) => {
   };
   db.data.conversations.push(conversation);
   persist();
-  recordLog('info', '创建会话', { conversationId: conversation.id });
+  recordLog('info', 'Conversation created', { conversationId: conversation.id });
   res.status(201).json({ conversation });
 });
 
 app.get('/api/conversations/:id/messages', authMiddleware, (req, res) => {
   const conversation = findConversation(req.params.id);
   if (!conversation || !conversation.members.includes(req.user.id)) {
-    return res.status(404).json({ message: '会话不存在或无权限' });
+    return res.status(404).json({ message: 'Conversation does not exist or you lack permission' });
   }
   const messages = db.data.messages
     .filter((m) => m.conversationId === conversation.id)
@@ -406,25 +406,25 @@ app.get('/api/conversations/:id/messages', authMiddleware, (req, res) => {
 app.post('/api/conversations/:id/members', authMiddleware, (req, res) => {
   const conversation = findConversation(req.params.id);
   if (!conversation) {
-    return res.status(404).json({ message: '会话不存在' });
+    return res.status(404).json({ message: 'Conversation not found' });
   }
   
-  // 验证是否是群聊
+  // Ensure this is a group conversation
   if (!conversation.isGroup) {
-    return res.status(400).json({ message: '私聊不支持添加成员' });
+    return res.status(400).json({ message: 'Direct chats do not support adding members' });
   }
   
-  // 验证权限：创建者、管理员或现有成员可以邀请
+  // Permission check: creator, admins or existing members can invite
   if (!conversation.members.includes(req.user.id) && !req.user.roles?.includes('admin')) {
-    return res.status(403).json({ message: '无权添加成员' });
+    return res.status(403).json({ message: 'You are not allowed to add members to this conversation' });
   }
   
   const { memberIds = [] } = req.body;
   if (!Array.isArray(memberIds) || memberIds.length === 0) {
-    return res.status(400).json({ message: '请指定要添加的成员' });
+    return res.status(400).json({ message: 'Please specify members to add' });
   }
   
-  // 验证要添加的用户都存在
+  // Ensure users to be added all exist
   const validMemberIds = memberIds.filter(id => 
     db.data.users.some(u => u.id === id)
   );
@@ -434,10 +434,10 @@ app.post('/api/conversations/:id/members', authMiddleware, (req, res) => {
   );
   persist();
   
-  // 通知所有成员
+  // Notify all members
   io.to(conversation.id).emit('conversation:updated', { conversation });
   
-  recordLog('info', '添加群成员', { 
+  recordLog('info', 'Added members to group', { 
     conversationId: conversation.id, 
     addedBy: req.user.id,
     newMembers: validMemberIds,
@@ -446,93 +446,94 @@ app.post('/api/conversations/:id/members', authMiddleware, (req, res) => {
   res.json({ conversation });
 });
 
-// 退出群聊
+// Leave group chat
 app.post('/api/conversations/:id/leave', authMiddleware, (req, res) => {
   const conversation = findConversation(req.params.id);
   if (!conversation) {
-    return res.status(404).json({ message: '会话不存在' });
+    return res.status(404).json({ message: 'Conversation not found' });
   }
   
   if (!conversation.isGroup) {
-    return res.status(400).json({ message: '私聊不支持退出操作' });
+    return res.status(400).json({ message: 'Direct chats do not support leaving' });
   }
   
   if (!conversation.members.includes(req.user.id)) {
-    return res.status(403).json({ message: '您不在该群聊中' });
+    return res.status(403).json({ message: 'You are not a member of this group' });
   }
   
-  // 如果是群主退出，解散群聊
+  // If the owner leaves, dissolve the group
   if (conversation.createdBy === req.user.id) {
-    // 删除群聊
+    // Delete group
     const index = db.data.conversations.findIndex(c => c.id === conversation.id);
     if (index !== -1) {
       db.data.conversations.splice(index, 1);
     }
     persist();
     
-    // 通知所有成员群已解散
+    // Notify all members that the group is dissolved
     io.to(conversation.id).emit('conversation:dissolved', {
       conversationId: conversation.id,
-      message: '群主已退出，群聊已解散',
+      message: 'Group owner left, group has been dissolved',
     });
     
-    recordLog('info', '群主退出，群聊解散', { 
+    recordLog('info', 'Group owner left, group dissolved', { 
       conversationId: conversation.id, 
       creatorId: req.user.id,
     });
     
-    return res.json({ message: '您已退出，群聊已解散' });
+    return res.json({ message: 'You left the group and it was dissolved' });
   }
   
-  // 普通成员退出
+  // Regular member leaves
   conversation.members = conversation.members.filter(id => id !== req.user.id);
   persist();
   
-  // 通知其他成员
+  // Notify remaining members
   io.to(conversation.id).emit('conversation:updated', { conversation });
   
-  recordLog('info', '用户退出群聊', { 
+  recordLog('info', 'User left group', { 
     conversationId: conversation.id, 
     userId: req.user.id,
   });
   
-  res.json({ message: '已退出群聊' });
+  res.json({ message: 'You left the group' });
 });
 
-// 删除群聊（仅群主）
+// Delete group chat (owner only)
 app.delete('/api/conversations/:id', authMiddleware, (req, res) => {
   const conversation = findConversation(req.params.id);
   if (!conversation) {
-    return res.status(404).json({ message: '会话不存在' });
+    return res.status(404).json({ message: 'Conversation not found' });
   }
   
   if (!conversation.isGroup) {
-    return res.status(400).json({ message: '私聊不支持删除操作' });
+    return res.status(400).json({ message: 'Direct chats cannot be deleted' });
   }
   
-  if (conversation.createdBy !== req.user.id && !req.user.roles?.includes('admin')) {
-    return res.status(403).json({ message: '只有群主或管理员可以删除群聊' });
+  // Only the creator can delete the group
+  if (conversation.createdBy !== req.user.id) {
+    return res.status(403).json({ message: 'Only the group owner can delete this group' });
   }
   
-  // 删除群聊
+  // Delete group
   const index = db.data.conversations.findIndex(c => c.id === conversation.id);
   if (index !== -1) {
     db.data.conversations.splice(index, 1);
   }
   persist();
   
-  // 通知所有成员
+  // Notify all members
   io.to(conversation.id).emit('conversation:deleted', {
     conversationId: conversation.id,
-    message: '群聊已被删除',
+    message: 'Group chat has been deleted',
   });
   
-  recordLog('info', '删除群聊', { 
+  recordLog('info', 'Group chat deleted', { 
     conversationId: conversation.id, 
     deletedBy: req.user.id,
   });
   
-  res.json({ message: '群聊已删除' });
+  res.json({ message: 'Group chat deleted' });
 });
 
 app.post(
@@ -540,26 +541,26 @@ app.post(
   authMiddleware,
   upload.single('file'),
   (req, res) => {
-    // 检查文件是否上传
+    // Ensure a file was uploaded
     if (!req.file) {
-      return res.status(400).json({ message: '未检测到文件' });
+      return res.status(400).json({ message: 'No file detected in upload' });
     }
     
     const { conversationId } = req.body;
     if (!conversationId) {
-      return res.status(400).json({ message: '缺少会话ID' });
+      return res.status(400).json({ message: 'Conversation id is required' });
     }
     
-    const conversation = findConversation(conversationId);
-    if (!conversation) {
-      return res.status(404).json({ message: '会话不存在' });
+  const conversation = findConversation(conversationId);
+  if (!conversation) {
+    return res.status(404).json({ message: 'Conversation not found' });
+  }
+  
+  if (!conversation.members.includes(req.user.id)) {
+    return res.status(403).json({ message: 'You are not allowed to upload to this conversation' });
     }
     
-    if (!conversation.members.includes(req.user.id)) {
-      return res.status(403).json({ message: '无权上传到该会话' });
-    }
-    
-    // 文件安全检查
+    // File safety validation
     const validation = validateFileUpload(req.file);
     if (!validation.valid) {
       return res.status(400).json({ message: validation.error });
@@ -581,7 +582,7 @@ app.post(
       conversationId,
       senderId: req.user.id,
       type: 'file',
-      content: `${req.user.name} 分享了文件: ${fileEntry.originalName}`,
+      content: `${req.user.name} shared a file: ${fileEntry.originalName}`,
       fileId: fileEntry.id,
     });
     persist();
@@ -591,10 +592,10 @@ app.post(
       sender: sanitizeUser(req.user),
     };
     
-    console.log('[Server] 广播文件消息:', messageWithSender);
+    console.log('[Server] broadcasting file message:', messageWithSender);
     io.to(conversationId).emit('message:new', messageWithSender);
     
-    recordLog('info', '文件上传', {
+    recordLog('info', 'File uploaded', {
       conversationId,
       fileId: fileEntry.id,
       uploaderId: req.user.id,
@@ -607,11 +608,11 @@ app.post(
 app.get('/api/files/:fileId', authMiddleware, (req, res) => {
   const file = db.data.files.find((f) => f.id === req.params.fileId);
   if (!file) {
-    return res.status(404).json({ message: '文件不存在' });
+    return res.status(404).json({ message: 'File not found' });
   }
   const conversation = findConversation(file.conversationId);
   if (!conversation || !conversation.members.includes(req.user.id)) {
-    return res.status(403).json({ message: '无权访问该文件' });
+    return res.status(403).json({ message: 'You are not allowed to access this file' });
   }
   res.sendFile(join(uploadDir, file.path));
 });
@@ -637,7 +638,7 @@ app.get('/api/dashboard/activity', authMiddleware, (_req, res) => {
     .map(([day, count]) => ({ day, count }));
 
   const connectionEvents = db.data.logs
-    .filter((log) => log.message.includes('连接'))
+    .filter((log) => log.message.includes('connection'))
     .slice(-50);
 
   res.json({
@@ -707,7 +708,7 @@ function ensureDirectConversation(userIdA, userIdB) {
   }
   const conversation = {
     id: nanoid(),
-    name: '私聊',
+    name: 'Direct chat',
     isGroup: false,
     members: [userIdA, userIdB],
     createdBy: 'system',
@@ -732,7 +733,7 @@ function generateNumericCode(length = 6) {
   for (let i = 0; i < length; i += 1) {
     code += Math.floor(Math.random() * 10).toString();
   }
-  // 确保首位不是 0，增强展示效果
+  // Ensure first digit is not 0 for nicer display
   if (code[0] === '0') {
     code = `1${code.slice(1)}`;
   }
@@ -744,18 +745,18 @@ setInterval(cleanupExpiredChallenges, 60 * 1000);
 io.use((socket, next) => {
   const { token } = socket.handshake.auth || {};
   if (!token) {
-    return next(new Error('未授权'));
+    return next(new Error('Unauthorized'));
   }
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     const user = db.data.users.find((u) => u.id === payload.sub);
     if (!user) {
-      return next(new Error('用户不存在'));
+      return next(new Error('User not found'));
     }
     socket.user = user;
     next();
   } catch (error) {
-    next(new Error('令牌无效'));
+    next(new Error('Invalid token'));
   }
 });
 
@@ -763,17 +764,17 @@ io.on('connection', (socket) => {
   const user = socket.user;
   socket.join(user.id);
   addOnlineUser(user.id, socket.id);
-  recordLog('info', '实时连接建立', { userId: user.id });
-  socket.emit('system:online', { message: '已连接实时服务', timestamp: new Date().toISOString() });
+  recordLog('info', 'Realtime connection established', { userId: user.id });
+  socket.emit('system:online', { message: 'Connected to realtime service', timestamp: new Date().toISOString() });
 
   socket.on('conversation:join', ({ conversationId }) => {
     const conversation = findConversation(conversationId);
     if (!conversation || !conversation.members.includes(user.id)) {
-      return socket.emit('error', { message: '无权加入该会话' });
+      return socket.emit('error', { message: 'You are not allowed to join this conversation' });
     }
     socket.join(conversationId);
     socket.emit('conversation:joined', { conversationId });
-    recordLog('info', '加入会话', { userId: user.id, conversationId });
+    recordLog('info', 'Joined conversation', { userId: user.id, conversationId });
   });
 
   socket.on('conversation:leave', ({ conversationId }) => {
@@ -784,17 +785,17 @@ io.on('connection', (socket) => {
   socket.on('message:send', ({ conversationId, content }) => {
     const conversation = findConversation(conversationId);
     if (!conversation || !conversation.members.includes(user.id)) {
-      return socket.emit('error', { message: '无法发送到该会话' });
+      return socket.emit('error', { message: 'Unable to send to this conversation' });
     }
     
-    // 验证消息内容
+    // Validate message content
     if (!content || typeof content !== 'string') {
-      return socket.emit('error', { message: '消息内容不能为空' });
+      return socket.emit('error', { message: 'Message content cannot be empty' });
     }
     
     const sanitizedContent = sanitizeInput(content);
     if (!sanitizedContent || sanitizedContent.trim().length === 0) {
-      return socket.emit('error', { message: '消息内容不能为空' });
+      return socket.emit('error', { message: 'Message content cannot be empty' });
     }
     
     const message = createMessage({
@@ -808,7 +809,7 @@ io.on('connection', (socket) => {
       ...message,
       sender: sanitizeUser(user),
     });
-    recordLog('info', '发送消息', { userId: user.id, conversationId });
+    recordLog('info', 'Message sent', { userId: user.id, conversationId });
   });
 
   socket.on('webrtc:signal', ({ conversationId, payload }) => {
@@ -859,7 +860,7 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     removeOnlineUser(user.id, socket.id);
-    recordLog('info', '实时连接断开', { userId: user.id });
+    recordLog('info', 'Realtime connection closed', { userId: user.id });
   });
 });
 

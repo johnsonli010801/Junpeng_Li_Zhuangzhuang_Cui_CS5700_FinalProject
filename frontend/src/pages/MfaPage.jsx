@@ -51,7 +51,7 @@ function MfaPage() {
     <div className="mfa-page">
       <div className="auth-card">
         <h1>🔐 Multi-factor authentication</h1>
-        <p>A 6-digit login verification code has been sent to your email (via Mailtrap sandbox).</p>
+        <p>A 6-digit login verification code has been sent to your email via Google email service.</p>
         <p>Please enter the code within 5 minutes to complete login.</p>
         <form onSubmit={handleSubmit}>
           <div className="form-group">

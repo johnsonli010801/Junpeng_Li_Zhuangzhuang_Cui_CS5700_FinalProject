@@ -32,19 +32,19 @@ export function generateToken(user) {
 export function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader) {
-    return res.status(401).json({ message: '缺少授权头' });
+    return res.status(401).json({ message: 'Missing Authorization header' });
   }
 
   const [, token] = authHeader.split(' ');
   if (!token) {
-    return res.status(401).json({ message: '授权头格式错误' });
+    return res.status(401).json({ message: 'Invalid Authorization header format' });
   }
 
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     const user = db.data.users.find((u) => u.id === payload.sub);
     if (!user) {
-      return res.status(401).json({ message: '用户不存在' });
+      return res.status(401).json({ message: 'User not found' });
     }
     if (!Array.isArray(user.friends)) {
       user.friends = [];
@@ -52,8 +52,8 @@ export function authMiddleware(req, res, next) {
     req.user = user;
     next();
   } catch (err) {
-    logger.error(`JWT 验证失败: ${err.message}`);
-    return res.status(401).json({ message: '令牌无效或已过期' });
+    logger.error(`JWT validation failed: ${err.message}`);
+    return res.status(401).json({ message: 'Token is invalid or expired' });
   }
 }
 

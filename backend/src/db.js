@@ -32,7 +32,7 @@ export function initDb() {
   }
 }
 
-// 用于防止并发写入的简单锁
+// Simple lock to prevent concurrent writes
 let isPersisting = false;
 let pendingPersist = false;
 
@@ -64,7 +64,7 @@ export function persist() {
   
   isPersisting = false;
   
-  // 如果有待处理的persist，立即执行
+  // If there is a pending persist, execute it immediately
   if (pendingPersist) {
     pendingPersist = false;
     setImmediate(() => persist());

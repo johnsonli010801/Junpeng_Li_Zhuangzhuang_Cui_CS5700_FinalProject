@@ -5,7 +5,6 @@ import ChatPage from './pages/ChatPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import { useAuthStore } from './store/useAuthStore.js';
 import './App.css';
-import { MfaDebugHint } from './components/MfaDebugHint.jsx';
 
 function ProtectedLayout() {
   const location = useLocation();
@@ -43,7 +42,6 @@ function ProtectedLayout() {
       <main className="app-main">
         <Outlet />
       </main>
-      <MfaDebugHint />
     </div>
   );
 }
@@ -51,8 +49,8 @@ function ProtectedLayout() {
 function App() {
   return (
     <Routes>
-      <Route path="/login" element={<><LoginPage /><MfaDebugHint /></>} />
-      <Route path="/mfa" element={<><MfaPage /><MfaDebugHint /></>} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/mfa" element={<MfaPage />} />
       <Route element={<ProtectedLayout />}>
         <Route index element={<Navigate to="/app" replace />} />
         <Route path="/app" element={<ChatPage />} />
