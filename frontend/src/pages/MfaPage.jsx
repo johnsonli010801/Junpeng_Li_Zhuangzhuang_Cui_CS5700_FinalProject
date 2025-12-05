@@ -15,7 +15,6 @@ function MfaPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // If there is no MFA challenge and no token, send the user back to login
     if (!challengeId && !token) {
       navigate('/login', { replace: true });
     } else if (token) {

@@ -2,7 +2,6 @@ import nodemailer from 'nodemailer';
 import { logger } from './logger.js';
 import { googleEmailConfig } from './config/googleEmailConfig.js';
 
-// Sends MFA codes via the Gmail account in googleEmailConfig.
 const transporter = nodemailer.createTransport({
   host: googleEmailConfig.host,
   port: googleEmailConfig.port,
@@ -13,7 +12,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Sends a 6‑digit login code after the password check passes.
+// 给用户发登录验证码
 export async function sendMfaCodeEmail(toEmail, code) {
   const info = await transporter.sendMail({
     from: googleEmailConfig.from || `YouChat Security <${googleEmailConfig.user}>`,

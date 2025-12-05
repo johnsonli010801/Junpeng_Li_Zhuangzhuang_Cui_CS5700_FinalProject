@@ -6,9 +6,9 @@ import { recordLog } from '../auth.js';
 import { sanitizeUser } from '../utils/userUtils.js';
 import { createMessage, findConversation } from '../utils/conversationUtils.js';
 
+// 聊天里的文件上传/下载
 export function createFileController(io, uploadDir) {
   const uploadFile = (req, res) => {
-    // Ensure a file was uploaded
     if (!req.file) {
       return res.status(400).json({ message: 'No file detected in upload' });
     }
@@ -27,7 +27,6 @@ export function createFileController(io, uploadDir) {
       return res.status(403).json({ message: 'You are not allowed to upload to this conversation' });
     }
 
-    // File safety validation
     const validation = validateFileUpload(req.file);
     if (!validation.valid) {
       return res.status(400).json({ message: validation.error });

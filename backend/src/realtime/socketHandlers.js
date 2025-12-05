@@ -49,13 +49,13 @@ export function registerSocketHandlers(io, onlineUsers) {
       socket.emit('conversation:left', { conversationId });
     });
 
+    // 用户发送消息（聊天文本）
     socket.on('message:send', ({ conversationId, content }) => {
       const conversation = findConversation(conversationId);
       if (!conversation || !conversation.members.includes(user.id)) {
         return socket.emit('error', { message: 'Unable to send to this conversation' });
       }
 
-      // Validate message content
       if (!content || typeof content !== 'string') {
         return socket.emit('error', { message: 'Message content cannot be empty' });
       }

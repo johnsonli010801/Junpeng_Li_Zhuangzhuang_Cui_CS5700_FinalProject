@@ -29,6 +29,7 @@ export function generateToken(user) {
   );
 }
 
+// JWT 鉴权中间件
 export function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader) {

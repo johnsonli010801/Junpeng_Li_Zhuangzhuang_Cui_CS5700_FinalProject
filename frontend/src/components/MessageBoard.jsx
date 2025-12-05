@@ -34,15 +34,11 @@ export function MessageBoard({ messages, onSend, onUpload, currentUserId, disabl
     try {
       setDownloading(fileId);
       console.log('[MessageBoard] start downloading file:', fileId);
-      
-      // Use axios to download; it will automatically carry Authorization header
       const response = await api.get(`/files/${fileId}`, {
-        responseType: 'blob', // important: treat response as blob
+        responseType: 'blob',
       });
       
       console.log('[MessageBoard] file downloaded successfully');
-      
-      // Create blob URL and trigger browser download
       const blob = new Blob([response.data]);
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');

@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid';
 import { db, persist } from '../db.js';
 
-// 从原 server.js 提取，保持逻辑不变
+// 会话相关的小工具
 export function findConversation(id) {
   return db.data.conversations.find((c) => c.id === id);
 }

@@ -5,6 +5,7 @@ import { recordLog } from '../auth.js';
 import { findConversation, createMessage } from '../utils/conversationUtils.js';
 
 export function createConversationController(io) {
+  // 创建会话（群聊 / 单聊）
   const listConversations = (req, res) => {
     const conversations = db.data.conversations.filter((c) =>
       c.members.includes(req.user.id)
@@ -18,7 +19,6 @@ export function createConversationController(io) {
       return res.status(400).json({ message: 'Conversation name is required' });
     }
 
-    // Sanitize conversation name
     const cleanName = sanitizeInput(name);
     if (!cleanName) {
       return res.status(400).json({ message: 'Conversation name cannot be empty' });
@@ -26,7 +26,6 @@ export function createConversationController(io) {
 
     const participants = Array.from(new Set([req.user.id, ...memberIds]));
 
-    // Direct conversation validation
     if (!isGroup) {
       if (memberIds.length === 0) {
         return res.status(400).json({
@@ -39,7 +38,6 @@ export function createConversationController(io) {
         });
       }
 
-      // Check whether a direct conversation between the two users already exists
       const existing = db.data.conversations.find(
         (conv) =>
           !conv.isGroup &&
@@ -82,12 +80,10 @@ export function createConversationController(io) {
       return res.status(404).json({ message: 'Conversation not found' });
     }
 
-    // Ensure this is a group conversation
     if (!conversation.isGroup) {
       return res.status(400).json({ message: 'Direct chats do not support adding members' });
     }
 
-    // Permission check: creator, admins or existing members can invite
     if (!conversation.members.includes(req.user.id) && !req.user.roles?.includes('admin')) {
       return res.status(403).json({ message: 'You are not allowed to add members to this conversation' });
     }
@@ -97,7 +93,6 @@ export function createConversationController(io) {
       return res.status(400).json({ message: 'Please specify members to add' });
     }
 
-    // Ensure users to be added all exist
     const validMemberIds = memberIds.filter((id) =>
       db.data.users.some((u) => u.id === id)
     );
@@ -107,7 +102,6 @@ export function createConversationController(io) {
     );
     persist();
 
-    // Notify all members
     io.to(conversation.id).emit('conversation:updated', { conversation });
 
     recordLog('info', 'Added members to group', {
@@ -133,16 +127,13 @@ export function createConversationController(io) {
       return res.status(403).json({ message: 'You are not a member of this group' });
     }
 
-    // If the owner leaves, dissolve the group
     if (conversation.createdBy === req.user.id) {
-      // Delete group
       const index = db.data.conversations.findIndex((c) => c.id === conversation.id);
       if (index !== -1) {
         db.data.conversations.splice(index, 1);
       }
       persist();
 
-      // Notify all members that the group is dissolved
       io.to(conversation.id).emit('conversation:dissolved', {
         conversationId: conversation.id,
         message: 'Group owner left, group has been dissolved',
@@ -156,11 +147,9 @@ export function createConversationController(io) {
       return res.json({ message: 'You left the group and it was dissolved' });
     }
 
-    // Regular member leaves
     conversation.members = conversation.members.filter((id) => id !== req.user.id);
     persist();
 
-    // Notify remaining members
     io.to(conversation.id).emit('conversation:updated', { conversation });
 
     recordLog('info', 'User left group', {
@@ -181,19 +170,16 @@ export function createConversationController(io) {
       return res.status(400).json({ message: 'Direct chats cannot be deleted' });
     }
 
-    // Only the creator can delete the group
     if (conversation.createdBy !== req.user.id) {
       return res.status(403).json({ message: 'Only the group owner can delete this group' });
     }
 
-    // Delete group
     const index = db.data.conversations.findIndex((c) => c.id === conversation.id);
     if (index !== -1) {
       db.data.conversations.splice(index, 1);
     }
     persist();
 
-    // Notify all members
     io.to(conversation.id).emit('conversation:deleted', {
       conversationId: conversation.id,
       message: 'Group chat has been deleted',

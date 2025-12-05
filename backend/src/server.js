@@ -65,25 +65,25 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Auth
+// 登录注册相关
 app.post('/api/auth/register', register);
 app.post('/api/auth/login', login);
 app.post('/api/auth/mfa/verify', verifyMfa);
 app.get('/api/me', authMiddleware, me);
 
-// Users 列表保持原逻辑（简单读取），暂时留在此处
+// 简单的用户列表
 app.get('/api/users', authMiddleware, (_req, res) => {
   const users = db.data.users.map((user) => user);
   res.json({ users });
 });
 
-// Friends
+// 好友接口
 const friendController = createFriendController(io);
 app.get('/api/friends', authMiddleware, friendController.getFriends);
 app.post('/api/friends/request', authMiddleware, friendController.requestFriend);
 app.post('/api/friends/respond', authMiddleware, friendController.respondFriend);
 
-// Conversations
+// 会话接口
 const conversationController = createConversationController(io);
 app.get('/api/conversations', authMiddleware, conversationController.listConversations);
 app.post('/api/conversations', authMiddleware, conversationController.createConversation);
@@ -108,7 +108,7 @@ app.delete(
   conversationController.deleteConversation,
 );
 
-// Files
+// 文件接口
 const fileController = createFileController(io, uploadDir);
 app.post(
   '/api/files/upload',
@@ -118,6 +118,7 @@ app.post(
 );
 app.get('/api/files/:fileId', authMiddleware, fileController.getFile);
 
+// 仪表盘接口
 app.get('/api/dashboard/summary', authMiddleware, (_req, res) => {
   res.json({
     users: db.data.users.length,
@@ -157,24 +158,10 @@ function findConversation(id) {
   return db.data.conversations.find((c) => c.id === id);
 }
 
-function createMessage({ conversationId, senderId, type = 'text', content, fileId }) {
-  const message = {
-    id: nanoid(),
-    conversationId,
-    senderId,
-    type,
-    content,
-    fileId: fileId ?? null,
-    createdAt: new Date().toISOString(),
-  };
-  db.data.messages.push(message);
-  return message;
-}
-
-// 定时清理 MFA 挑战
+// 定时清理过期的 MFA 挑战
 setInterval(cleanupExpiredChallenges, 60 * 1000);
 
-// Socket
+// 实时连接
 setupSocketAuth(io);
 registerSocketHandlers(io, onlineUsers);
 

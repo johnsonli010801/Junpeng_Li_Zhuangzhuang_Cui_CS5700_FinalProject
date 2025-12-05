@@ -7,14 +7,13 @@ const rtcConfig = {
   ],
 };
 
-// State machine: idle -> dialing/ringing -> connecting -> connected -> ended
 const CALL_STATES = {
   IDLE: 'idle',
-  DIALING: 'dialing',       // Caller: waiting for callee to answer
-  RINGING: 'ringing',       // Callee: incoming call
-  CONNECTING: 'connecting', // Both: WebRTC handshake in progress
-  CONNECTED: 'connected',   // Both: call in progress
-  ENDED: 'ended',          // Call ended
+  DIALING: 'dialing',
+  RINGING: 'ringing',
+  CONNECTING: 'connecting',
+  CONNECTED: 'connected',
+  ENDED: 'ended',
 };
 
 export function VideoCall({ mode, conversationId, socket, userId, onClose, caller }) {
@@ -26,30 +25,25 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
   const localStreamRef = useRef(null);
   const pendingCandidatesRef = useRef([]);
 
-  // Cleanup resources
   const cleanup = useCallback(() => {
     console.log('[VideoCall] cleanup');
     
-    // Close peer connection
     if (peerRef.current) {
       peerRef.current.close();
       peerRef.current = null;
     }
     
-    // Stop local media stream
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => track.stop());
       localStreamRef.current = null;
     }
     
-    // Clear video elements
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     
     pendingCandidatesRef.current = [];
   }, []);
 
-  // Get local media stream
   const getLocalStream = useCallback(async () => {
     if (localStreamRef.current) return localStreamRef.current;
     
@@ -71,7 +65,6 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
     }
   }, []);
 
-  // Create PeerConnection
   const createPeerConnection = useCallback(async () => {
     if (peerRef.current) {
       console.log('[VideoCall] PeerConnection already exists');
@@ -82,7 +75,6 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
     const pc = new RTCPeerConnection(rtcConfig);
     peerRef.current = pc;
 
-    // ICE candidate event
     pc.onicecandidate = (event) => {
       if (event.candidate && socket) {
         console.log('[VideoCall] sending ICE candidate');
@@ -93,7 +85,6 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
       }
     };
 
-    // Receive remote stream
     pc.ontrack = (event) => {
       console.log('[VideoCall] received remote stream');
       if (remoteVideoRef.current && event.streams[0]) {
@@ -102,7 +93,6 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
       }
     };
 
-    // Connection state change
     pc.onconnectionstatechange = () => {
       console.log('[VideoCall] connection state:', pc.connectionState);
       if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
@@ -111,7 +101,6 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
       }
     };
 
-    // Attach local stream
     const stream = await getLocalStream();
     stream.getTracks().forEach(track => {
       pc.addTrack(track, stream);
@@ -120,7 +109,6 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
     return pc;
   }, [conversationId, socket, getLocalStream]);
 
-  // Caller: start call
   const startCall = useCallback(async () => {
     if (!socket || !conversationId) return;
     
@@ -129,7 +117,6 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
     socket.emit('call:invite', { conversationId });
   }, [socket, conversationId]);
 
-  // Callee: accept call
   const acceptCall = useCallback(async () => {
     if (!socket || !conversationId) return;
     
@@ -138,7 +125,6 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
     socket.emit('call:accept', { conversationId });
   }, [socket, conversationId]);
 
-  // Reject / hang up
   const handleEnd = useCallback(() => {
     console.log('[VideoCall] hang up call');
     if (socket && conversationId && callState !== CALL_STATES.IDLE) {
@@ -150,7 +136,6 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
     onClose();
   }, [socket, conversationId, callState, cleanup, onClose]);
 
-  // Handle WebRTC signaling
   useEffect(() => {
     if (!socket) return;
 
@@ -161,14 +146,12 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
 
       try {
         if (payload.type === 'offer') {
-          // Callee receives offer
           const pc = await createPeerConnection();
           await pc.setRemoteDescription(new RTCSessionDescription({
             type: 'offer',
             sdp: payload.sdp,
           }));
           
-          // Apply pending candidates
           for (const candidate of pendingCandidatesRef.current) {
             await pc.addIceCandidate(candidate);
           }
@@ -184,7 +167,6 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
           console.log('[VideoCall] sent answer');
           
         } else if (payload.type === 'answer') {
-          // Caller receives answer
           if (!peerRef.current) {
             console.error('[VideoCall] PeerConnection does not exist');
             return;
@@ -196,12 +178,10 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
           console.log('[VideoCall] answer set');
           
         } else if (payload.type === 'candidate') {
-          // Receive ICE candidate
           if (peerRef.current && peerRef.current.remoteDescription) {
             await peerRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate));
             console.log('[VideoCall] added candidate');
           } else {
-            // Store temporarily until remoteDescription is set
             pendingCandidatesRef.current.push(new RTCIceCandidate(payload.candidate));
             console.log('[VideoCall] queued candidate');
           }
@@ -215,7 +195,6 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
     return () => socket.off('webrtc:signal', handleSignal);
   }, [socket, conversationId, createPeerConnection]);
 
-  // Handle call events
   useEffect(() => {
     if (!socket) return;
 
@@ -266,7 +245,6 @@ export function VideoCall({ mode, conversationId, socket, userId, onClose, calle
     };
   }, [socket, conversationId, mode, createPeerConnection, handleEnd]);
 
-  // Init
   useEffect(() => {
     if (mode === 'outgoing') {
       setVisible(true);

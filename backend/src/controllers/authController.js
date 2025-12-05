@@ -15,8 +15,7 @@ import {
   verifyMfaToken,
 } from '../services/mfaService.js';
 
-// 与原先路由处理逻辑一致，只是拆分为 controller 函数
-
+// 用户注册
 export const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -24,16 +23,13 @@ export const register = async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // Email format validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({ message: 'Invalid email format' });
     }
 
-    // Normalize email
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Check if email already exists
     const existingUser = db.data.users.find((u) => u.email === normalizedEmail);
     if (existingUser) {
       return res.status(409).json({ message: 'Email is already registered' });
@@ -43,8 +39,8 @@ export const register = async (req, res) => {
     const now = new Date().toISOString();
     const user = {
       id: nanoid(),
-      name: sanitizeInput(name), // Sanitize user name
-      email: normalizedEmail, // Normalized email
+      name: sanitizeInput(name),
+      email: normalizedEmail,
       passwordHash,
       friends: [],
       roles: ['user'],
@@ -52,7 +48,6 @@ export const register = async (req, res) => {
       updatedAt: now,
     };
 
-    // Double-check to avoid race conditions
     const doubleCheck = db.data.users.find((u) => u.email === normalizedEmail);
     if (doubleCheck) {
       return res.status(409).json({ message: 'Email is already registered' });
@@ -72,7 +67,6 @@ export const login = async (req, res) => {
   const { email, password } = req.body;
   const ip = req.ip || req.connection.remoteAddress;
 
-  // Normalize email (same as during registration)
   const normalizedEmail = email.toLowerCase().trim();
 
   const user = db.data.users.find((u) => u.email === normalizedEmail);
@@ -107,7 +101,6 @@ export const me = (req, res) => {
   res.json({ user: sanitizeUser(req.user) });
 };
 
-// 导出中间件，便于路由层统一引用
 export { authMiddleware };
 
 

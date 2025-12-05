@@ -9,7 +9,6 @@ services:
       POSTGRES_DB: youchat
       POSTGRES_USER: youchat
       POSTGRES_PASSWORD: youchat_password
-    # 使用非常规端口 25432 作为容器内部和宿主机端口
     command: ["postgres", "-p", "25432"]
     ports:
       - "25432:25432"

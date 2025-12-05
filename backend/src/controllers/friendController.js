@@ -4,7 +4,7 @@ import { recordLog } from '../auth.js';
 import { ensureUserShape, decorateFriendRequest } from '../utils/userUtils.js';
 import { ensureDirectConversation } from '../utils/conversationUtils.js';
 
-// 依赖注入 Socket.IO 实例，保持原有广播逻辑
+// 好友相关接口
 export function createFriendController(io) {
   const getFriends = (req, res) => {
     ensureUserShape(req.user);

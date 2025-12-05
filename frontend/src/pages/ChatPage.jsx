@@ -26,7 +26,7 @@ function ChatPage() {
   const [activeNav, setActiveNav] = useState('chats');
   const [searchTerm, setSearchTerm] = useState('');
   const [callState, setCallState] = useState({
-    mode: null, // 'outgoing' | 'incoming'
+    mode: null,
     conversationId: null,
     from: null,
   });
@@ -50,7 +50,7 @@ function ChatPage() {
     };
     load();
     refreshFriends();
-  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token]); 
 
   useEffect(() => {
     if (!token) return;
@@ -67,7 +67,6 @@ function ChatPage() {
       console.log('[ChatPage] received new message:', message);
       if (message.conversationId === selectedConversation?.id) {
         setRawMessages((prev) => {
-          // Avoid duplicate messages
           if (prev.some(m => m.id === message.id)) {
             return prev;
           }
@@ -106,11 +105,9 @@ function ChatPage() {
       refreshFriends();
     };
     const handleConversationUpdated = async ({ conversation }) => {
-      // Refresh conversation list
       const { data } = await api.get('/conversations');
       setConversations(data.conversations);
       
-      // If the current conversation was updated, also update the selected one
       if (selectedConversation?.id === conversation.id) {
         const updated = data.conversations.find(c => c.id === conversation.id);
         if (updated) {
@@ -161,7 +158,6 @@ function ChatPage() {
   }, [selectedConversation]);
 
   const enrichMessage = useCallback((message) => {
-    // If message already has a sender object (from Socket), prefer it
     const senderName = message.sender?.name || 
                        message.senderName || 
                        users.find((u) => u.id === message.senderId)?.name || 
@@ -175,7 +171,6 @@ function ChatPage() {
         : undefined,
     };
     
-    // Debug: log file messages
     if (message.type === 'file') {
       console.log('[enrichMessage] file message:', {
         id: enriched.id,
@@ -219,8 +214,6 @@ function ChatPage() {
       console.log('[ChatPage] file message:', data.message);
       console.log('[ChatPage] file id:', data.file.id);
       
-      // File message will be broadcast via Socket, but we also add it immediately
-      // to avoid waiting for Socket latency
       if (data.message) {
         setRawMessages((prev) => {
           if (prev.some(m => m.id === data.message.id)) {
@@ -270,7 +263,7 @@ function ChatPage() {
 
   const handleStartDirectChat = async (friend) => {
     const { data } = await api.post('/conversations', {
-      name: friend.name, // Use friend name as conversation name
+      name: friend.name,
       isGroup: false,
       memberIds: [friend.id],
     });
@@ -282,17 +275,14 @@ function ChatPage() {
     setActiveNav('chats');
   };
   
-  // Invite friend to group
   const handleInviteToGroup = async () => {
     if (!selectedConversation || !selectedConversation.isGroup) return;
     
-    // Show friend list to pick from
     const friendNames = friends.map(f => `${f.name} (${f.email})`).join('\n');
     const input = window.prompt(`Pick a friend to invite (enter email or ID):\n\nYour friends:\n${friendNames}`);
     if (!input) return;
     
     try {
-      // Find friend
       const friend = friends.find(f => 
         f.email === input || f.id === input || f.name === input
       );
@@ -306,7 +296,6 @@ function ChatPage() {
         memberIds: [friend.id],
       });
       
-      // Refresh conversation list
       const { data } = await api.get('/conversations');
       setConversations(data.conversations);
       alert(`Invited ${friend.name} to the group`);
@@ -315,7 +304,6 @@ function ChatPage() {
     }
   };
   
-  // Leave group chat
   const handleLeaveGroup = async () => {
     if (!selectedConversation || !selectedConversation.isGroup) return;
     
@@ -328,8 +316,6 @@ function ChatPage() {
     
     try {
       await api.post(`/conversations/${selectedConversation.id}/leave`);
-      
-      // Remove conversation from list
       setConversations(prev => prev.filter(c => c.id !== selectedConversation.id));
       setSelectedConversation(null);
       alert('You have left the group');
@@ -338,7 +324,6 @@ function ChatPage() {
     }
   };
   
-  // Delete group chat (owner)
   const handleDeleteGroup = async () => {
     if (!selectedConversation || !selectedConversation.isGroup) return;
     if (selectedConversation.createdBy !== user?.id) {
@@ -350,8 +335,6 @@ function ChatPage() {
     
     try {
       await api.delete(`/conversations/${selectedConversation.id}`);
-      
-      // Remove conversation from list
       setConversations(prev => prev.filter(c => c.id !== selectedConversation.id));
       setSelectedConversation(null);
       alert('Group chat deleted');
@@ -365,13 +348,11 @@ function ChatPage() {
     [rawMessages, enrichMessage]
   );
 
-  // Get display name for direct conversations
   const getConversationDisplayName = useCallback((conv) => {
     if (conv.isGroup) {
       return conv.name;
     }
     
-    // For direct chat, show the other user's name
     const otherMemberId = conv.members.find(id => id !== user?.id);
     if (otherMemberId) {
       const otherUser = users.find(u => u.id === otherMemberId) ||

@@ -1,6 +1,6 @@
 import { db } from '../db.js';
 
-// 从原 server.js 提取，保持逻辑不变
+// 用户相关的小工具
 export function sanitizeUser(user) {
   const {
     passwordHash,
