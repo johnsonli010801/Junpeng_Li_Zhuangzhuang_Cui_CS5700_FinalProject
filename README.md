@@ -1,61 +1,151 @@
-Project 1: 实时安全通讯平台
-================================
+Project 1：实时安全通讯平台Youchat
+=================================
 
-本仓库实现了一个用于课程作业的端到端实时通讯应用，前端 (React + Vite) 与后端 (Express + Socket.IO) 已完整落地，可直接运行体验。
+本仓库实现了一个端到端实时安全通讯应用，包括前端（React + Vite）、后端（Express + Socket.IO + Postgres）以及基于 Docker 的数据库与 Google 相关配置。
 
-核心特性
---------
-1. **即时通讯**：Socket.IO 文本推送、WebRTC 信令与音视频呼叫。
-2. **文件共享**：支持 P2P 触发、后端存储加鉴权下载。
-3. **通信安全**：所有 API 及 Socket 交互基于 JWT；文件下载需会话授权。
-4. **安全登录 + MFA**：支持注册、登录、TOTP 双因素绑定与校验。
-5. **好友 + 群聊**：新增类似微信的好友申请/通讯录/私聊入口，保留群聊管理。
-6. **活动日志/仪表盘**：后端审计日志 + 前端仪表盘（消息趋势、连接记录）。
-7. **友好前端**：模仿微信的三栏布局（侧边导航 + 会话/通讯录 + 聊天窗）与弹窗式视频通话体验。
+---
 
-快速开始
---------
+运行方式
+--------------------
+
 ```bash
-# 1. 安装依赖（启用 workspace）
+# 1. 安装依赖
 npm install
 
-# 2. 启动 Postgres（使用非常规端口 25432）
+# 2. 启动 Postgres
 docker compose up -d postgres
 
 # 3. 启动前后端（默认端口：前端 5173，后端 4000）
 npm run dev
 
-# 独立启动
+# 也可以分别启动
 npm run dev:server   # 仅后端
 npm run dev:web      # 仅前端
 ```
 
-- 默认 API 地址：`http://localhost:4000/api`
-- 前端开发地址：`http://localhost:5173`
-- 可通过 `.env` 为前后端分别配置 `PORT`、`VITE_API_BASE`、`VITE_SOCKET_URL`。
+- **前端开发地址**：`http://localhost:5173`
+- **后端 API 基址**：`http://localhost:4000/api`
 
-后端数据库
-----------
+---
 
-- 当前后端使用 **Postgres** 作为持久化存储，运行在 Docker 中：  
-  - 容器内部端口：`25432`（非常规端口）  
-  - 宿主机映射端口：`25432`  
-- 默认连接配置（可通过环境变量覆盖）：  
-  - `PGHOST`：`localhost`  
-  - `PGPORT`：`25432`  
-  - `PGDATABASE`：`youchat`  
-  - `PGUSER`：`youchat`  
-  - `PGPASSWORD`：`youchat_password`  
-- 所有原本存在于 `backend/data/db.json` 里的内容，现在会以 **单行 JSONB** 的形式存进 Postgres 的 `app_state` 表中，应用层仍通过 `db.data.*` 访问。
-
-代码结构
+项目架构
 --------
-```
-backend/   # Express + Socket.IO + LowDB（用户/会话/日志/文件）
-frontend/  # React 18 + Vite + Zustand + Recharts（聊天 & 仪表盘）
-docs/      # 架构与实现说明
-uploads/   # 文件上传目录（自动创建，生产可替换为对象存储）
-```
 
-更多设计细节（模块划分、数据流、安全策略、测试/部署计划）见 `docs/project1_architecture.md`。
+### 前端
+
+- **技术栈**：React 18、Vite、React Router、Zustand、Recharts，使用 `socket.io-client` 连接后端。
+- **主要页面**：
+  - `LoginPage`：注册 / 登录，发起 MFA 挑战。
+  - `MfaPage`：输入邮箱收到的 6 位验证码完成登录。
+  - `ChatPage`：微信风格三栏布局（侧边导航 + 会话/通讯录 + 聊天窗口），支持好友管理、群聊、私聊、文件发送、视频通话。
+  - `DashboardPage`：系统监控与统计（用户数、会话数、消息数、文件数、在线人数，消息趋势图，日志列表）。
+- **状态与数据流**：
+  - 使用 `useAuthStore` 维护登录态（JWT、当前用户、MFA 挑战 ID、调试验证码等）。
+  - 所有 HTTP 请求通过 `frontend/src/api/client.js` 统一封装，自动携带 Token。
+  - Socket 连接通过 `frontend/src/api/socket.js` 管理，订阅 `message:new`、`friends:update`、`conversation:*`、`call:*` 等事件。
+
+### 后端
+
+- **技术栈**：Node.js、Express、Socket.IO、Postgres、JWT、Multer、Winston。
+- **主要模块**：
+  - `authController`：注册、登录、MFA 验证、`/api/me` 当前用户。
+  - `friendController`：好友申请、好友请求处理、好友列表。
+  - `conversationController`：会话 / 群组创建、成员添加、获取消息、退出群组、删除群组。
+  - `fileController`：文件上传与下载（基于 Multer，文件保存在 `uploads/` 目录）。
+  - `dashboardController` 与 `/api/logs`：为仪表盘提供统计数据和最近日志。
+  - `realtime/socketHandlers`：Socket 身份认证、消息推送、好友与会话事件推送、WebRTC 信令（如 `call:ring`）。
+  - `services/mfaService`：MFA 挑战生成、校验与定时清理。
+- **认证与鉴权**：
+  - 所有受保护接口使用 `authMiddleware` 校验 JWT。
+  - Socket.IO 连接在握手阶段校验 Token，未授权的连接会被拒绝。
+
+### 部署与基础设施（Docker / 数据库 / Google 配置）
+
+- **Docker & Postgres**
+  - `docker-compose.yml` 中定义 `postgres` 服务：
+    - 镜像：`postgres:16`
+    - 容器名：`youchat-postgres`
+    - 端口映射：容器 `25432` → 宿主机 `25432`
+    - 环境变量：
+      - `POSTGRES_DB=youchat`
+      - `POSTGRES_USER=youchat`
+      - `POSTGRES_PASSWORD=youchat_password`
+    - 数据卷：`youchat-postgres-data:/var/lib/postgresql/data`
+  - 后端使用 `pg` 连接 Postgres，持久化用户、会话、消息、日志、文件元数据等。
+
+- **Google 邮件配置（用于 MFA）**
+  - 配置文件：`backend/src/config/googleEmailConfig.js`
+  - 使用 Gmail SMTP 发送 MFA 验证码邮件，主要字段：
+    - `host: 'smtp.gmail.com'`
+    - `port: 587`
+    - `secure: false`
+    - `user` / `pass` / `from`：具体账号与应用密码（演示环境写死，生产应使用环境变量）。
+
+- **Google STUN（用于 WebRTC）**
+  - 前端 `VideoCall` 组件中配置：
+    - `stun:stun.l.google.com:19302`
+    - `stun:stun1.l.google.com:19302`
+  - 用于 WebRTC 打洞，协助 P2P 音视频连接。
+
+---
+
+功能需求
+---------------
+
+- **用户与认证**
+  - 用户注册 / 登录。
+  - 登录后需要通过邮箱验证码完成 **多因素认证（MFA）**。
+  - 登录成功后跳转到应用主界面，未登录访问受保护路由会被重定向。
+
+- **好友与通讯录**
+  - 通过邮箱或用户 ID 搜索并添加好友。
+  - 处理好友请求（同意 / 拒绝）。
+  - 查看好友列表，从通讯录一键发起私聊。
+
+- **会话 / 聊天**
+  - 创建群聊，邀请好友加入，管理群成员。
+  - 支持群聊和私聊，会话列表支持搜索过滤。
+  - 发送文本消息，实时接收对方消息（Socket.IO）。
+  - 加载历史聊天记录并在聊天窗口中滚动展示。
+
+- **文件共享**
+  - 在会话中上传文件（最大约 25MB，后端有大小限制）。
+  - 在消息列表中展示文件消息，点击可下载文件。
+
+- **音视频通话（基础）**
+  - 在私聊会话中发起视频通话。
+  - 使用 WebRTC + Socket.IO 信令，结合 Google STUN 进行连通性探索。
+
+- **系统监控与审计**
+  - 仪表盘展示：
+    - 用户总数、会话总数、消息总数、文件总数、当前在线用户数。
+    - 按天统计的消息趋势图。
+  - 日志面板展示最近的连接与关键操作日志，用于审计。
+
+---
+
+非功能需求
+-----------------
+
+- **安全性**
+  - 使用 **JWT** 对所有受保护 HTTP 接口与 Socket.IO 连接进行认证。
+  - 所有文件上传与下载接口都需要通过 `authMiddleware` 校验登录状态。
+  - 登录流程要求通过邮箱验证码进行第二步验证，验证码具有有效期，后台定期清理过期挑战。
+  - 用户密码使用 `bcryptjs` 哈希存储，不以明文落库。
+  - 后端通过 `winston` 记录关键操作日志，便于安全审计和问题追踪。
+
+- **可靠性与可维护性**
+  - 引入 Postgres 替代单纯的本地文件存储，提高数据可靠性与一致性。
+  - 通过 Docker volume `youchat-postgres-data` 持久化数据库数据。
+  - 应用启动时会进行数据结构校验和迁移（如 `ensureUserShape`、初始化默认字段）。
+
+- **性能与用户体验**
+  - 即时通讯与通知使用 Socket.IO 长连接，确保低延迟推送。
+  - 前端使用 Vite 提供快速开发体验与高效打包。
+  - 仪表盘使用 Recharts 可视化消息趋势，方便观察系统使用情况与负载。
+
+- **可部署性**
+  - 数据库通过 `docker compose up -d postgres` 一键拉起，简化环境准备。
+  - 前后端使用标准的 `npm run dev` / `npm run build` / `npm run start` 流程，易于迁移到云环境或容器编排平台。
+
 
