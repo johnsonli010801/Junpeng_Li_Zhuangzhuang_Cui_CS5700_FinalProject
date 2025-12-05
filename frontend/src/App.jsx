@@ -1,8 +1,7 @@
 import { Link, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
-import LoginPage from './pages/LoginPage.jsx';
-import MfaPage from './pages/MfaPage.jsx';
-import ChatPage from './pages/ChatPage.jsx';
-import DashboardPage from './pages/DashboardPage.jsx';
+import { LoginPage, MfaPage } from './features/auth/index.js';
+import { ChatPage } from './features/chat/index.js';
+import { DashboardPage } from './features/dashboard/index.js';
 import { useAuthStore } from './store/useAuthStore.js';
 import './App.css';
 
