@@ -15,12 +15,10 @@ function MfaPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Only redirect back to login when there is no token and no challenge id
-    // This avoids redirecting back after successful verification
+    // If there is no MFA challenge and no token, send the user back to login
     if (!challengeId && !token) {
       navigate('/login', { replace: true });
     } else if (token) {
-      // If token already exists (verification success), go straight to app
       navigate('/app', { replace: true });
     }
   }, [challengeId, token, navigate]);
@@ -34,11 +32,9 @@ function MfaPage() {
         challengeId,
         token: code,
       });
-      // First set auth state and clear challenge
       setAuth({ token: data.token, user: data.user });
       setPendingChallenge(null);
       setMfaDebugCode(null);
-      // Use replace instead of push to avoid going back to MFA page
       navigate('/app', { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid verification code, please try again');

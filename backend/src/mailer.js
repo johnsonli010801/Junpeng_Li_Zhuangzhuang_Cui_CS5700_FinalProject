@@ -2,8 +2,7 @@ import nodemailer from 'nodemailer';
 import { logger } from './logger.js';
 import { googleEmailConfig } from './config/googleEmailConfig.js';
 
-// Send emails using Gmail SMTP with simple username + password auth.
-// This is ONLY used to send MFA verification codes, not for Google OAuth / SSO login.
+// Sends MFA codes via the Gmail account in googleEmailConfig.
 const transporter = nodemailer.createTransport({
   host: googleEmailConfig.host,
   port: googleEmailConfig.port,
@@ -14,19 +13,10 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-/**
- * Send login MFA verification code email.
- *
- * Important:
- * - This only sends a 6-digit code to the user's email via Google email service.
- * - The system still uses its own "email + password" account model for authentication.
- * - Backend only checks whether the user can receive email for that address;
- *   it does NOT perform Google account OAuth login.
- */
+// Sends a 6‑digit login code after the password check passes.
 export async function sendMfaCodeEmail(toEmail, code) {
   const info = await transporter.sendMail({
     from: googleEmailConfig.from || `YouChat Security <${googleEmailConfig.user}>`,
-    // Send to the same email used on the login form, to verify ownership via code.
     to: toEmail,
     subject: 'Your YouChat login verification code',
     text: `[YouChat] Your login verification code is: ${code} (valid for 5 minutes).\n\nIf you did not request this, you can safely ignore this email.`,

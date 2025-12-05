@@ -10,5 +10,8 @@ backend/logs/
 uploads/
 package-lock.json
 
+# local mail config (contains secrets, keep it out of git)
+backend/src/config/googleEmailConfig.js
+
 
 

@@ -138,8 +138,7 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(401).json({ message: 'Invalid email or password' });
   }
   
-  // After the initial password check passes, always trigger email-code MFA
-  // and send the code to a fixed Mailtrap sandbox inbox.
+  // Password ok, now require an email code as the second step
   const challengeId = nanoid();
   const code = generateNumericCode(6);
   const expiresAt = Date.now() + 5 * 60 * 1000;
@@ -149,7 +148,7 @@ app.post('/api/auth/login', async (req, res) => {
     expiresAt,
   });
 
-  // Log MFA code in console (development/testing only)
+  // Log MFA code in console so it's easy to see during local testing
   console.log(`\nMFA code generated: ${code}`);
   console.log(`User email: ${user.email}`);
   console.log(`Expires at: ${new Date(expiresAt).toLocaleString('zh-CN')}`);
@@ -168,7 +167,7 @@ app.post('/api/auth/login', async (req, res) => {
   recordLog('info', 'Triggered email MFA login challenge', {
     userId: user.id,
     ip,
-    code, // Log code for demo purposes (remove in production)
+    code, // Handy while developing; remove if this ever goes to real users
   });
   
   return res.json({ requiresMfa: true, challengeId, mfaCode: code });
