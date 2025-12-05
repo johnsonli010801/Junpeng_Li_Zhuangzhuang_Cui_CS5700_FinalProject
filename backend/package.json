@@ -23,10 +23,10 @@
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
-    "lowdb": "^7.0.1",
     "multer": "^2.0.2",
     "nanoid": "^5.1.6",
-    "nodemailer": "^6.10.1",
+    "nodemailer": "^7.0.11",
+    "pg": "^8.13.1",
     "socket.io": "^4.8.1",
     "uuid": "^13.0.0",
     "winston": "^3.18.3"

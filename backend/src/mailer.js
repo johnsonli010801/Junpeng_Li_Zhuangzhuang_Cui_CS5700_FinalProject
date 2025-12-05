@@ -30,9 +30,9 @@ export async function sendMfaCodeEmail(toEmail, code) {
             body {
               margin: 0;
               padding: 0;
-              background-color: #0f172a;
+              background-color: #f3f4ff;
               font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-              color: #e5e7eb;
+              color: #111827;
             }
             .wrapper {
               width: 100%;
@@ -42,11 +42,12 @@ export async function sendMfaCodeEmail(toEmail, code) {
             .card {
               max-width: 480px;
               margin: 0 auto;
-              background: radial-gradient(circle at top left, #22d3ee33, #0f172a 55%) border-box,
-                         linear-gradient(145deg, #1f2937, #020617) padding-box;
+              background:
+                linear-gradient(145deg, rgba(102, 126, 234, 0.14), rgba(118, 75, 162, 0.16)) border-box,
+                #ffffff padding-box;
               border-radius: 18px;
-              border: 1px solid rgba(148, 163, 184, 0.4);
-              box-shadow: 0 22px 45px rgba(15, 23, 42, 0.75);
+              border: 1px solid rgba(129, 140, 248, 0.35);
+              box-shadow: 0 18px 40px rgba(79, 70, 229, 0.22);
               padding: 28px 24px 24px;
             }
             .logo {
@@ -56,57 +57,45 @@ export async function sendMfaCodeEmail(toEmail, code) {
               display: inline-flex;
               align-items: center;
               gap: 8px;
-              color: #e5e7eb;
-            }
-            .logo-badge {
-              width: 26px;
-              height: 26px;
-              border-radius: 999px;
-              background: conic-gradient(from 180deg, #22d3ee, #6366f1, #8b5cf6, #22d3ee);
-              display: inline-flex;
-              align-items: center;
-              justify-content: center;
-              color: #020617;
-              font-size: 14px;
-              font-weight: 800;
+              color: #1f2937;
             }
             h1 {
               margin: 18px 0 4px;
               font-size: 22px;
-              color: #f9fafb;
+              color: #111827;
             }
             p {
               margin: 4px 0;
               font-size: 14px;
               line-height: 1.6;
-              color: #cbd5f5;
+              color: #4b5563;
             }
             .code-box {
               margin: 20px 0 12px;
               padding: 14px 18px;
               border-radius: 14px;
-              background: rgba(15, 23, 42, 0.9);
-              border: 1px solid rgba(148, 163, 184, 0.6);
+              background: linear-gradient(135deg, #e0e7ff, #ede9fe);
+              border: 1px solid rgba(129, 140, 248, 0.8);
               display: inline-flex;
               letter-spacing: 0.48em;
               font-size: 26px;
               font-weight: 700;
-              color: #e5e7eb;
+              color: #4338ca;
             }
             .meta {
               font-size: 12px;
-              color: #9ca3af;
+              color: #6b7280;
               margin-top: 10px;
             }
             .footer {
               margin-top: 28px;
               font-size: 11px;
               color: #6b7280;
-              border-top: 1px dashed rgba(55, 65, 81, 0.9);
+              border-top: 1px dashed rgba(148, 163, 184, 0.8);
               padding-top: 14px;
             }
             .footer strong {
-              color: #e5e7eb;
+              color: #4f46e5;
               font-weight: 600;
             }
           </style>
@@ -115,7 +104,6 @@ export async function sendMfaCodeEmail(toEmail, code) {
           <div class="wrapper">
             <div class="card">
               <div class="logo">
-                <span class="logo-badge">Y</span>
                 YouChat Security
               </div>
               <h1>Your login verification code</h1>

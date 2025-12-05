@@ -19,7 +19,10 @@ Project 1: 实时安全通讯平台
 # 1. 安装依赖（启用 workspace）
 npm install
 
-# 2. 启动前后端（默认端口：前端 5173，后端 4000）
+# 2. 启动 Postgres（使用非常规端口 25432）
+docker compose up -d postgres
+
+# 3. 启动前后端（默认端口：前端 5173，后端 4000）
 npm run dev
 
 # 独立启动
@@ -30,6 +33,20 @@ npm run dev:web      # 仅前端
 - 默认 API 地址：`http://localhost:4000/api`
 - 前端开发地址：`http://localhost:5173`
 - 可通过 `.env` 为前后端分别配置 `PORT`、`VITE_API_BASE`、`VITE_SOCKET_URL`。
+
+后端数据库
+----------
+
+- 当前后端使用 **Postgres** 作为持久化存储，运行在 Docker 中：  
+  - 容器内部端口：`25432`（非常规端口）  
+  - 宿主机映射端口：`25432`  
+- 默认连接配置（可通过环境变量覆盖）：  
+  - `PGHOST`：`localhost`  
+  - `PGPORT`：`25432`  
+  - `PGDATABASE`：`youchat`  
+  - `PGUSER`：`youchat`  
+  - `PGPASSWORD`：`youchat_password`  
+- 所有原本存在于 `backend/data/db.json` 里的内容，现在会以 **单行 JSONB** 的形式存进 Postgres 的 `app_state` 表中，应用层仍通过 `db.data.*` 访问。
 
 代码结构
 --------

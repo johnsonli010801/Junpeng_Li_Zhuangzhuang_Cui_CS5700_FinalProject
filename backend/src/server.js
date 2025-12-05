@@ -56,9 +56,6 @@ const upload = multer({
 const pendingMfaChallenges = new Map();
 const onlineUsers = new Map();
 
-initDb();
-hydrateLegacyData();
-
 app.use(cors({
   origin: ALLOWED_ORIGINS,
   credentials: true,
@@ -888,8 +885,19 @@ function hydrateLegacyData() {
   persist();
 }
 
-const PORT = process.env.PORT || 4000;
-httpServer.listen(PORT, () => {
-  logger.info(`Backend listening on http://localhost:${PORT}`);
+async function bootstrap() {
+  await initDb();
+  hydrateLegacyData();
+
+  const PORT = process.env.PORT || 4000;
+  httpServer.listen(PORT, () => {
+    logger.info(`Backend listening on http://localhost:${PORT}`);
+  });
+}
+
+bootstrap().catch((error) => {
+  logger.error(`Failed to start backend: ${error.message}`);
+  process.exit(1);
 });
+
 
