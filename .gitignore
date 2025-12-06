@@ -1,0 +1,18 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+.env
+.env.local
+.env.production.local
+backend/data/db.json
+backend/logs/
+uploads/
+package-lock.json
+
+# local mail config (contains secrets, keep it out of git)
+backend/src/config/googleEmailConfig.js
+
+FinalVideo_Demo_NormalSpeed.zip
+
+docker-compose.yml

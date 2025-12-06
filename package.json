@@ -1,0 +1,19 @@
+{
+  "name": "youchat",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Project 1: 实时安全通讯平台",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:server": "cd backend && npm run dev",
+    "dev:web": "cd frontend && npm run dev",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:web\"",
+    "start": "npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
